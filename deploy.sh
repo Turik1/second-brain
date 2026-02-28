@@ -17,9 +17,15 @@ docker image prune -f
 echo "==> Waiting for health check..."
 sleep 5
 
-DOMAIN=$(grep -oP 'WEBHOOK_DOMAIN=https?://\K[^/]+' .env || echo "localhost")
+DOMAIN=$(grep -oP 'WEBHOOK_DOMAIN=https?://\K[^/]+' .env || echo "")
 
-if curl -sf "https://${DOMAIN}/health" > /dev/null 2>&1; then
+if [ -n "$DOMAIN" ]; then
+  HEALTH_URL="https://${DOMAIN}/health"
+else
+  HEALTH_URL="http://localhost/health"
+fi
+
+if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
   echo "==> Deploy successful! App is healthy."
 else
   echo "==> Health check failed. Rolling back to ${PREV_SHA}..."
