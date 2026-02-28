@@ -1,0 +1,142 @@
+import 'dotenv/config';
+import http from 'http';
+import express from 'express';
+import { webhookCallback } from 'grammy';
+import { config } from './config.js';
+import { logger } from './utils/logger.js';
+import { getHealthState, setNotionConnected } from './utils/state.js';
+import { createBot } from './bot/index.js';
+import { initializeScheduler, generateDailyDigest, generateWeeklyDigest } from './digest/index.js';
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+async function main() {
+  logger.info({ port: config.PORT, env: config.NODE_ENV }, 'Second Brain starting');
+
+  // Handle unhandled rejections without crashing
+  process.on('unhandledRejection', (reason) => {
+    logger.error({ event: 'unhandled_rejection', reason }, 'Unhandled promise rejection');
+  });
+
+  process.on('uncaughtException', (err) => {
+    logger.error({ event: 'uncaught_exception', error: err }, 'Uncaught exception');
+  });
+
+  const bot = createBot();
+
+  // Helper: send a message to the allowed chat
+  const sendToUser = async (text: string): Promise<void> => {
+    await bot.api.sendMessage(config.ALLOWED_CHAT_ID, text, { parse_mode: 'HTML' });
+  };
+
+  // Register on-demand digest commands
+  bot.command('digest', async (ctx) => {
+    logger.info({ messageId: ctx.message?.message_id }, 'Command: /digest');
+    await ctx.reply('Generating daily digest...');
+    try {
+      await generateDailyDigest(sendToUser);
+    } catch (err) {
+      logger.error({ error: err }, 'Manual daily digest failed');
+      await ctx.reply('Failed to generate digest. Check logs for details.');
+    }
+  });
+
+  bot.command('weekly', async (ctx) => {
+    logger.info({ messageId: ctx.message?.message_id }, 'Command: /weekly');
+    await ctx.reply('Generating weekly digest...');
+    try {
+      await generateWeeklyDigest(sendToUser);
+    } catch (err) {
+      logger.error({ error: err }, 'Manual weekly digest failed');
+      await ctx.reply('Failed to generate weekly digest. Check logs for details.');
+    }
+  });
+
+  const app = express();
+  app.use(express.json());
+
+  // Enriched health check endpoint
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      ...getHealthState(),
+    });
+  });
+
+  const isWebhookMode =
+    config.NODE_ENV === 'production' && config.WEBHOOK_DOMAIN !== undefined;
+
+  const scheduler = initializeScheduler(sendToUser, bot);
+
+  let server: http.Server;
+
+  if (isWebhookMode) {
+    // Webhook mode for production
+    const webhookPath = `/${config.TELEGRAM_BOT_TOKEN}`;
+    app.post(webhookPath, webhookCallback(bot, 'express'));
+
+    server = app.listen(config.PORT, async () => {
+      logger.info({ port: config.PORT }, 'Express server listening');
+      const webhookUrl = `${config.WEBHOOK_DOMAIN}${webhookPath}`;
+      await bot.api.setWebhook(webhookUrl);
+      logger.info({ webhookUrl }, 'Webhook set');
+      setNotionConnected(true);
+    });
+  } else {
+    // Long polling for development
+    server = app.listen(config.PORT, () => {
+      logger.info({ port: config.PORT }, 'Express server listening (dev mode)');
+      setNotionConnected(true);
+    });
+
+    await bot.start({
+      onStart: (info) => logger.info({ username: info.username }, 'Bot started polling'),
+    });
+  }
+
+  // ─── Graceful shutdown ────────────────────────────────────────────────────
+
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
+
+  async function shutdown(signal: string): Promise<void> {
+    logger.info({ signal }, 'Shutdown signal received');
+
+    // Stop accepting new requests
+    server.close(() => {
+      logger.info('HTTP server closed');
+    });
+
+    // Stop cron jobs
+    scheduler.stop();
+
+    // Wait for in-flight messages to complete (max 30s)
+    const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS;
+    while (getHealthState().pendingMessages > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    const { pendingMessages } = getHealthState();
+    if (pendingMessages > 0) {
+      logger.warn({ pendingMessages }, 'Shutdown timeout: some messages still in flight');
+    }
+
+    // Stop the bot
+    try {
+      await bot.stop();
+    } catch {
+      // ignore errors during shutdown
+    }
+
+    logger.info('Shutdown complete');
+    process.exit(0);
+  }
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+}
+
+main().catch((err) => {
+  logger.error({ error: err }, 'Fatal startup error');
+  process.exit(1);
+});
