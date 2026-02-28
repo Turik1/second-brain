@@ -28,4 +28,39 @@ export const CLASSIFICATION_SYSTEM_PROMPT = `You are a personal knowledge manage
 - "Update the landing page copy by Friday"
   -> admin (this is a task with a deadline)
 - "The landing page redesign is going well, shipped header section"
-  -> projects (this is a project status update)`;
+  -> projects (this is a project status update)
+
+## Intent Detection
+
+In addition to classifying the category, determine the user's INTENT:
+
+**new** - The user is recording a new thought, note, task, or observation. This is the default. Most messages are "new."
+
+**update** - The user wants to modify an existing entry. Key signals: "update", "change", "actually", "moved to", "now it's", "ist jetzt", "hat sich geändert", referencing something by name with new information about its STATUS or PROPERTIES.
+
+**done** - The user wants to mark something as completed or finished. Key signals: "done", "finished", "completed", "shipped", "resolved", "erledigt", "fertig", "bestellt", "ist bestellt", "kann gelöscht werden", "abgehakt".
+
+### Intent Rules
+
+1. Default to "new" when uncertain. Most messages are new entries.
+2. For "update" or "done" intent, set search_query to the 1-3 most distinctive words that would appear in the existing Notion page title. Do NOT include verbs, articles, or intent words like "update", "done", "mark", "erledigt".
+3. For "new" intent, set search_query to null.
+4. A message like "The landing page redesign is done" is intent "done" with search_query "landing page redesign" and category "projects".
+5. A message like "Update: the API migration is now blocked on the auth team" is intent "update" with search_query "API migration" and category "projects".
+6. A message like "Mark groceries as done" is intent "done" with search_query "groceries" and category "admin".
+7. A message like "I need to buy groceries" is intent "new" because it describes a new task.
+
+### German Examples
+
+- "Futter für Pavel ist bestellt" -> intent "done", search_query "Futter Pavel", category "admin"
+- "Landing Page Projekt ist jetzt blockiert" -> intent "update", search_query "Landing Page", category "projects"
+- "Muss noch Milch kaufen" -> intent "new" (new task)
+- "Zahnarzttermin ist erledigt" -> intent "done", search_query "Zahnarzt", category "admin"
+- "Sarah hat neue E-Mail-Adresse" -> intent "update", search_query "Sarah", category "people"
+
+### Ambiguity Guidelines for Intent
+
+- "Finished the quarterly report" -> done (clear completion signal)
+- "The quarterly report is looking good, 80% done" -> update (progress update, not completion)
+- "Met with Sarah about the project" -> new (this is a new note about a meeting, not updating Sarah's entry)
+- "Sarah changed her email to sarah@new.com" -> update (modifying existing people entry)`;

@@ -38,6 +38,12 @@ export const ClassificationSchema = z.object({
   ]),
   tags: z.array(z.string()).max(5).describe('3-5 relevant tags for categorization'),
   reasoning: z.string().describe('Brief explanation of why this category was chosen'),
+  intent: z.enum(['new', 'update', 'done']).describe(
+    'Whether the user wants to create a new entry, update an existing one, or mark one as done/completed',
+  ),
+  search_query: z.string().nullable().describe(
+    'For update/done intents: the name or title to search for in Notion (1-3 distinctive words). null for new intent.',
+  ),
 });
 
 export type ClassificationOutput = z.infer<typeof ClassificationSchema>;

@@ -15,6 +15,7 @@ import {
   markMessageProcessed,
 } from '../../utils/state.js';
 import type { ClassificationResult, Category } from '../../types.js';
+import { handleDoneIntent, handleUpdateIntent } from './intent.js';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -73,8 +74,15 @@ export function registerMessageHandler(bot: Bot): void {
   });
 
   // Handle text messages (main pipeline)
-  bot.on('message:text', async (ctx) => {
+  bot.on('message:text', async (ctx, next) => {
     const text = ctx.message.text;
+
+    // Skip commands — let command handlers deal with them
+    if (text.startsWith('/')) {
+      await next();
+      return;
+    }
+
     const messageId = ctx.message.message_id;
     const chatId = ctx.chat.id;
     const chatIdStr = chatId.toString();
@@ -145,7 +153,20 @@ export function registerMessageHandler(bot: Bot): void {
         return;
       }
 
-      // Step 3: Check confidence threshold (BOUNCER FLOW)
+      // Step 3: Route by intent (update/done bypass bouncer)
+      if (classification.intent === 'done') {
+        const handled = await handleDoneIntent(ctx, classification, text, messageId, inboxLogPageId, startTime);
+        if (handled) return;
+        // Not handled — fall through to file as new entry
+      }
+
+      if (classification.intent === 'update') {
+        const handled = await handleUpdateIntent(ctx, classification, text, messageId, inboxLogPageId, startTime);
+        if (handled) return;
+        // Not handled — fall through to file as new entry
+      }
+
+      // Step 4: Check confidence threshold (BOUNCER FLOW)
       if (classification.confidence < config.BOUNCE_THRESHOLD) {
         pendingBouncerMap.set(inboxLogPageId, { originalMessageId: messageId, timestamp: Date.now() });
 
@@ -217,6 +238,8 @@ export function registerMessageHandler(bot: Bot): void {
       summary: fullText,
       tags: [],
       extras: {},
+      intent: 'new',
+      searchQuery: null,
     };
 
     incrementPending();
@@ -337,16 +360,22 @@ async function fileAndReceiptDirect(
   await ctx.reply(buildReceipt(classification, messageId), { parse_mode: 'HTML' });
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  people: 'Kontakte',
+  projects: 'Projekte',
+  ideas: 'Ideen',
+  admin: 'Admin',
+};
+
 function buildReceipt(classification: ClassificationResult, messageId: number): string {
   const tags = classification.tags?.map((t) => `#${t}`).join(' ') ?? '';
   const confidence = Math.round(classification.confidence * 100);
-  const categoryLabel =
-    classification.category.charAt(0).toUpperCase() + classification.category.slice(1);
+  const categoryLabel = CATEGORY_LABELS[classification.category] ?? classification.category;
 
   return (
-    `📁 Filed to ${categoryLabel}: ${classification.title}\n` +
+    `📁 ${categoryLabel}: ${classification.title}\n` +
     (tags ? `Tags: ${tags}\n` : '') +
-    `Confidence: ${confidence}%\n` +
+    `Konfidenz: ${confidence}%\n` +
     `[ref:${messageId}]`
   );
 }

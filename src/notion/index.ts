@@ -41,7 +41,10 @@ export interface FailedMessage {
 
 const rateLimiter = new RateLimiter(400);
 
-export const notionClient = new Client({ auth: config.NOTION_API_KEY });
+export const notionClient = new Client({
+  auth: config.NOTION_API_KEY,
+  notionVersion: '2022-06-28',
+});
 
 /**
  * Wrap any Notion API call with rate limiting and error handling.
@@ -160,6 +163,9 @@ export {
   createInboxLogEntry,
   updateInboxLogStatus,
   queryRecentEntries,
+  queryByProperty,
+  searchByTitle,
+  updatePageStatus,
   moveEntry,
   verifyDatabases,
   summarizePage,

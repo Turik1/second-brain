@@ -1,5 +1,7 @@
 export type Category = 'people' | 'projects' | 'ideas' | 'admin' | 'unknown';
 
+export type Intent = 'new' | 'update' | 'done';
+
 export type InboxStatus = 'processed' | 'pending' | 'failed' | 're-classified' | 'expired';
 
 export interface ClassificationResult {
@@ -9,6 +11,8 @@ export interface ClassificationResult {
   summary: string;
   tags: string[];
   extras: Record<string, unknown>;
+  intent: Intent;
+  searchQuery: string | null;
 }
 
 export interface InboxEntry {

@@ -103,5 +103,7 @@ function toClassificationResult(output: ClassificationOutput): ClassificationRes
     summary: output.reasoning,
     tags: output.tags,
     extras,
+    intent: output.intent,
+    searchQuery: output.search_query,
   };
 }

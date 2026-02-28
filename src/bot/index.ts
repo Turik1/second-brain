@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { registerCommandHandlers } from './handlers/commands.js';
 import { registerMessageHandler } from './handlers/message.js';
 import { registerFixHandler } from './handlers/fix.js';
+import { registerIntentCallbackHandler } from './handlers/intent.js';
 
 export function createBot(): Bot {
   const bot = new Bot(config.TELEGRAM_BOT_TOKEN);
@@ -22,6 +23,7 @@ export function createBot(): Bot {
   registerCommandHandlers(bot);
   registerFixHandler(bot);
   registerMessageHandler(bot);
+  registerIntentCallbackHandler(bot);
 
   // Global error handler
   bot.catch((err) => {

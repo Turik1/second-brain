@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { queryRecentEntries, summarizePage } from '../notion/index.js';
+import { splitTelegramMessage } from '../utils/telegram.js';
 import { DAILY_DIGEST_SYSTEM_PROMPT } from './prompt.js';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
@@ -34,28 +35,6 @@ function formatInput(input: DigestInput, truncated: Record<string, boolean>): st
   }
 
   return sections.join('\n\n');
-}
-
-function splitTelegramMessage(text: string, maxLen = 4096): string[] {
-  if (text.length <= maxLen) return [text];
-
-  const parts: string[] = [];
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      parts.push(remaining);
-      break;
-    }
-
-    let splitAt = remaining.lastIndexOf('\n', maxLen);
-    if (splitAt <= 0) splitAt = maxLen;
-
-    parts.push(remaining.slice(0, splitAt));
-    remaining = remaining.slice(splitAt).trimStart();
-  }
-
-  return parts;
 }
 
 export async function generateDailyDigest(sendFn: (text: string) => Promise<void>): Promise<void> {
@@ -102,7 +81,7 @@ export async function generateDailyDigest(sendFn: (text: string) => Promise<void
   }
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5-latest',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 2048,
     system: DAILY_DIGEST_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: formattedInput }],

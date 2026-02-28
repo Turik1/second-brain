@@ -20,14 +20,22 @@ export function registerCommandHandlers(bot: Bot): void {
       '<b>Commands:</b>\n' +
         '/start — Introduction\n' +
         '/help — This message\n' +
-        '/status — Check Notion connectivity\n\n' +
+        '/status — Check Notion connectivity\n' +
+        '/overview — Current state overview\n' +
+        '/digest — Daily digest (last 24h)\n' +
+        '/weekly — Weekly review (last 7 days)\n\n' +
         '<b>To fix a mis-filed entry:</b>\n' +
         'Reply to the receipt message with:\n' +
         '<code>fix: people</code>\n' +
         '<code>fix: projects</code>\n' +
         '<code>fix: ideas</code>\n' +
         '<code>fix: admin</code>\n\n' +
-        '<b>Categories:</b> people, projects, ideas, admin',
+        '<b>Categories:</b> people, projects, ideas, admin\n\n' +
+        '<b>Intent-Erkennung:</b>\n' +
+        'Ich erkenne auch Updates und Erledigungen:\n' +
+        '<i>"Hundefutter ist bestellt"</i> → markiert als erledigt\n' +
+        '<i>"API Projekt ist jetzt blockiert"</i> → aktualisiert Status\n' +
+        '<i>"Muss Milch kaufen"</i> → neuer Eintrag',
       { parse_mode: 'HTML' },
     );
   });

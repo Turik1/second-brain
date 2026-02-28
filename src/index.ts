@@ -6,7 +6,7 @@ import { config } from './config.js';
 import { logger } from './utils/logger.js';
 import { getHealthState, setNotionConnected } from './utils/state.js';
 import { createBot } from './bot/index.js';
-import { initializeScheduler, generateDailyDigest, generateWeeklyDigest } from './digest/index.js';
+import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,17 @@ async function main() {
     } catch (err) {
       logger.error({ error: err }, 'Manual weekly digest failed');
       await ctx.reply('Failed to generate weekly digest. Check logs for details.');
+    }
+  });
+
+  bot.command('overview', async (ctx) => {
+    logger.info({ messageId: ctx.message?.message_id }, 'Command: /overview');
+    await ctx.reply('Generating overview, this may take a moment...');
+    try {
+      await generateOverview(sendToUser);
+    } catch (err) {
+      logger.error({ error: err }, 'Overview generation failed');
+      await ctx.reply('Failed to generate overview. Check logs for details.');
     }
   });
 

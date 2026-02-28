@@ -243,10 +243,36 @@ export async function queryRecentEntries(
     queryDatabase({
       database_id: databaseId,
       filter: {
-        property: 'Created',
+        timestamp: 'created_time',
         created_time: { on_or_after: since.toISOString() },
       },
       sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function queryByProperty(
+  databaseId: string,
+  propertyName: string,
+  value: string,
+  pageSize = 50,
+): Promise<NotionPage[]> {
+  const response = await callNotion('queryByProperty', () =>
+    queryDatabase({
+      database_id: databaseId,
+      filter: {
+        property: propertyName,
+        select: { equals: value },
+      },
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
       page_size: pageSize,
     }),
   );
@@ -282,6 +308,48 @@ export async function findInboxLogByMessageId(
     created_time: page.created_time,
     last_edited_time: page.last_edited_time,
   };
+}
+
+// ─── Search & Update functions ───────────────────────────────────────────────
+
+export async function searchByTitle(
+  databaseId: string,
+  query: string,
+  pageSize = 5,
+): Promise<NotionPage[]> {
+  const response = await callNotion('searchByTitle', () =>
+    queryDatabase({
+      database_id: databaseId,
+      filter: {
+        property: 'Name',
+        title: { contains: query },
+      },
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function updatePageStatus(
+  pageId: string,
+  status: string,
+): Promise<void> {
+  await callNotion('updatePageStatus', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: {
+        Status: { select: sel(status) },
+      } as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'page_status_updated', pageId, status });
 }
 
 // ─── Move entry ──────────────────────────────────────────────────────────────
