@@ -34,6 +34,9 @@ export const ClassificationSchema = z.object({
       type: z.enum(['task', 'reminder', 'appointment', 'errand', 'note']),
       due_date: z.string().nullable().describe('ISO date string if mentioned, null otherwise'),
       status: z.literal('pending'),
+      priority: z.enum(['high', 'medium', 'low']).describe(
+        'Priority: high for appointments/deadlines/urgent items, medium for standard tasks/errands, low for notes/non-urgent items',
+      ),
     }),
   ]),
   tags: z.array(z.string()).max(5).describe('3-5 relevant tags for categorization'),

@@ -142,6 +142,7 @@ export async function createAdminPage(data: AdminEntry): Promise<string> {
     Name: { title: richText(data.name) },
     Type: { select: sel(data.type) },
     Status: { select: sel(data.status) },
+    Priority: { select: sel(data.priority) },
     Tags: { multi_select: multiSelect(data.tags) },
     'Source Message': { rich_text: richText(data.sourceMessage) },
     'Source Message ID': { number: data.sourceMessageId },

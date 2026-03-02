@@ -273,6 +273,7 @@ export async function fileToDatabase(
             | 'note') ?? 'task',
         dueDate: (extras['due_date'] as string | null) ?? null,
         status: 'pending',
+        priority: (extras['priority'] as 'high' | 'medium' | 'low') ?? 'medium',
         ...base,
       });
 

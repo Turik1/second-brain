@@ -92,6 +92,7 @@ function toClassificationResult(output: ClassificationOutput): ClassificationRes
     extras['type'] = fields.type;
     extras['due_date'] = fields.due_date;
     extras['status'] = fields.status;
+    extras['priority'] = fields.priority;
   }
 
   extras['reasoning'] = output.reasoning;

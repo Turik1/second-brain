@@ -9,6 +9,10 @@ export const CLASSIFICATION_SYSTEM_PROMPT = `You are a personal knowledge manage
 **ideas** - New concepts, shower thoughts, business ideas, technical insights, creative sparks, research directions. Key signal: the message describes something that doesn't exist yet or a novel connection.
 
 **admin** - Tasks, reminders, errands, appointments, administrative notes, things to buy, places to go, deadlines. Key signal: something that needs to be DONE, a to-do item, or a calendar-related note.
+For admin entries, also assess priority:
+- **high**: appointments, items with explicit deadlines, urgent requests, time-sensitive errands
+- **medium**: standard tasks, shopping/errands, reminders without urgency
+- **low**: notes, non-urgent observations, "someday" items
 
 ## Rules
 

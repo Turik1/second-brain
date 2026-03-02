@@ -37,6 +37,7 @@ export interface AdminEntry {
   type: 'task' | 'reminder' | 'appointment' | 'errand' | 'note';
   dueDate: string | null;
   status: 'pending' | 'done' | 'cancelled';
+  priority: 'high' | 'medium' | 'low';
   tags: string[];
   sourceMessage: string;
   sourceMessageId: number;
