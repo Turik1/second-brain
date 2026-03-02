@@ -285,6 +285,53 @@ export async function queryByProperty(
   }));
 }
 
+export async function queryPendingAdmin(pageSize = 50): Promise<NotionPage[]> {
+  const response = await callNotion('queryPendingAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        property: 'Status',
+        select: { equals: 'pending' },
+      },
+      sorts: [
+        { property: 'Due Date', direction: 'ascending' },
+        { timestamp: 'created_time', direction: 'descending' },
+      ],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function queryDueAdmin(onOrBefore: Date, pageSize = 50): Promise<NotionPage[]> {
+  const response = await callNotion('queryDueAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'pending' } },
+          { property: 'Due Date', date: { on_or_before: onOrBefore.toISOString().split('T')[0] } },
+        ],
+      },
+      sorts: [{ property: 'Due Date', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
 export async function findInboxLogByMessageId(
   messageId: number,
 ): Promise<NotionPage | null> {
@@ -432,17 +479,29 @@ export function summarizePage(page: NotionPage): string {
   const props = page.properties;
   let title = '';
   let body = '';
+  const meta: string[] = [];
 
-  for (const val of Object.values(props)) {
+  for (const [key, val] of Object.entries(props)) {
     if (typeof val !== 'object' || val === null) continue;
     const v = val as Record<string, unknown>;
+
     if (v['type'] === 'title' && Array.isArray(v['title'])) {
       title = extractText(v['title']);
     } else if (v['type'] === 'rich_text' && Array.isArray(v['rich_text']) && !body) {
       const text = extractText(v['rich_text']);
       if (text) body = text.slice(0, 200);
+    } else if (v['type'] === 'select' && v['select']) {
+      const selectVal = (v['select'] as Record<string, unknown>)['name'] as string | undefined;
+      if (selectVal && (key === 'Priority' || key === 'Status')) {
+        meta.push(`${key}: ${selectVal}`);
+      }
+    } else if (v['type'] === 'date' && v['date'] && key === 'Due Date') {
+      const dateObj = v['date'] as Record<string, unknown>;
+      const start = dateObj['start'] as string | undefined;
+      if (start) meta.push(`fällig: ${start}`);
     }
   }
 
-  return body ? `${title}: ${body}` : title;
+  const metaStr = meta.length > 0 ? ` [${meta.join(', ')}]` : '';
+  return body ? `${title}${metaStr}: ${body}` : `${title}${metaStr}`;
 }

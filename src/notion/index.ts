@@ -164,6 +164,8 @@ export {
   updateInboxLogStatus,
   queryRecentEntries,
   queryByProperty,
+  queryPendingAdmin,
+  queryDueAdmin,
   searchByTitle,
   updatePageStatus,
   moveEntry,

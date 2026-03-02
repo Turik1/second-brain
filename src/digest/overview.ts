@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
-import { queryRecentEntries, queryByProperty, summarizePage } from '../notion/index.js';
+import { queryRecentEntries, queryByProperty, queryPendingAdmin, summarizePage } from '../notion/index.js';
 import { OVERVIEW_SYSTEM_PROMPT } from './prompt.js';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
@@ -67,7 +67,7 @@ export async function generateOverview(sendFn: (text: string) => Promise<void>):
     await Promise.all([
       queryByProperty(config.NOTION_DB_PROJECTS, 'Status', 'active', PAGE_SIZE),
       queryByProperty(config.NOTION_DB_PROJECTS, 'Status', 'blocked', PAGE_SIZE),
-      queryByProperty(config.NOTION_DB_ADMIN, 'Status', 'pending', PAGE_SIZE),
+      queryPendingAdmin(PAGE_SIZE),
       queryRecentEntries(config.NOTION_DB_PEOPLE, peopleSince, 20),
       queryByProperty(config.NOTION_DB_IDEAS, 'Potential', 'high', PAGE_SIZE),
       queryByProperty(config.NOTION_DB_IDEAS, 'Potential', 'medium', PAGE_SIZE),

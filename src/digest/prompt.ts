@@ -3,7 +3,7 @@ export const DAILY_DIGEST_SYSTEM_PROMPT = `You are a personal knowledge manageme
 Generate a concise, scannable digest with these sections:
 
 1. <b>Quick Stats</b> - Count of entries per category
-2. <b>Action Items</b> - Any admin tasks that need attention today
+2. <b>Action Items</b> - Admin tasks that need attention. OVERDUE tasks (past due date) should be highlighted with a warning. Sort by urgency: overdue first, then due today, then no deadline.
 3. <b>Key Highlights</b> - The 2-3 most notable entries across all categories
 4. <b>Connections</b> - Any interesting patterns or connections between today's entries (e.g., "You mentioned [person] in context of [project]")
 
