@@ -505,12 +505,27 @@ export async function addRelation(
   relationPropertyName: string,
   targetPageId: string,
 ): Promise<void> {
+  // Read existing relations to avoid overwriting
+  const page = await callNotion('addRelation_read', () =>
+    notionClient.pages.retrieve({ page_id: pageId }),
+  );
+
+  const existingProp = (page as Record<string, unknown> & { properties: Record<string, unknown> }).properties?.[relationPropertyName] as Record<string, unknown> | undefined;
+  const existingRelations: Array<{ id: string }> =
+    (existingProp?.['relation'] as Array<{ id: string }>) ?? [];
+
+  // Avoid duplicates
+  if (existingRelations.some((r) => r.id === targetPageId)) {
+    logger.info({ event: 'relation_already_exists', pageId, targetPageId });
+    return;
+  }
+
   await callNotion('addRelation', () =>
     notionClient.pages.update({
       page_id: pageId,
       properties: {
         [relationPropertyName]: {
-          relation: [{ id: targetPageId }],
+          relation: [...existingRelations, { id: targetPageId }],
         },
       } as Parameters<typeof notionClient.pages.update>[0]['properties'],
     }),
@@ -573,6 +588,9 @@ export function summarizePage(page: NotionPage): string {
 
     if (v['type'] === 'title' && Array.isArray(v['title'])) {
       title = extractText(v['title']);
+    } else if (v['type'] === 'rich_text' && Array.isArray(v['rich_text']) && key === 'Next Action') {
+      const text = extractText(v['rich_text']);
+      if (text) meta.push(`next: ${text.slice(0, 80)}`);
     } else if (v['type'] === 'rich_text' && Array.isArray(v['rich_text']) && !body) {
       const text = extractText(v['rich_text']);
       if (text) body = text.slice(0, 200);

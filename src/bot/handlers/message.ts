@@ -77,6 +77,15 @@ export async function cleanupStaleBouncer(bot: Bot): Promise<void> {
   }
 }
 
+export function cleanupStaleRelations(): void {
+  const now = Date.now();
+  for (const [key, entry] of pendingRelationMap.entries()) {
+    if (now - entry.timestamp > BOUNCER_EXPIRY_MS) {
+      pendingRelationMap.delete(key);
+    }
+  }
+}
+
 export function registerMessageHandler(bot: Bot): void {
   // Handle non-text messages
   bot.on('message', async (ctx, next) => {
@@ -435,7 +444,7 @@ const DB_MAP: Record<string, string> = {
   admin: config.NOTION_DB_ADMIN,
 };
 
-const CATEGORY_LABELS_FULL: Record<string, string> = {
+const CATEGORY_LABELS: Record<string, string> = {
   people: 'Kontakte',
   projects: 'Projekte',
   ideas: 'Ideen',
@@ -460,7 +469,7 @@ async function suggestRelations(
 
       if (results.length === 1) {
         const targetTitle = summarizePage(results[0]).slice(0, 60);
-        const targetCategoryLabel = CATEGORY_LABELS_FULL[entry.target_category] ?? entry.target_category;
+        const targetCategoryLabel = CATEGORY_LABELS[entry.target_category] ?? entry.target_category;
 
         const relKey = nextRelationKey++;
         pendingRelationMap.set(relKey, {
@@ -484,13 +493,6 @@ async function suggestRelations(
     }
   }
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  people: 'Kontakte',
-  projects: 'Projekte',
-  ideas: 'Ideen',
-  admin: 'Admin',
-};
 
 function buildReceipt(classification: ClassificationResult, messageId: number): string {
   const tags = classification.tags?.map((t) => `#${t}`).join(' ') ?? '';

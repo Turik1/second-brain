@@ -7,7 +7,7 @@ import { generateDailyDigest } from './daily.js';
 import { generateWeeklyDigest } from './weekly.js';
 import { generateAfternoonReminder } from './reminder.js';
 import { generateWeeklyReview } from './weekly-review.js';
-import { cleanupStaleBouncer } from '../bot/handlers/message.js';
+import { cleanupStaleBouncer, cleanupStaleRelations } from '../bot/handlers/message.js';
 
 export function initializeScheduler(
   sendFn: (text: string) => Promise<void>,
@@ -34,6 +34,11 @@ export function initializeScheduler(
         } catch (err) {
           logger.error({ event: 'bouncer_cleanup_error', error: err }, 'Bouncer cleanup failed');
         }
+      }
+      try {
+        cleanupStaleRelations();
+      } catch (err) {
+        logger.error({ event: 'relation_cleanup_error', error: err }, 'Relation cleanup failed');
       }
     },
     { timezone },
