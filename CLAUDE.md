@@ -12,6 +12,7 @@ Telegram bot that classifies messages via Claude API and saves to Notion databas
 - `npm run build` - compile TypeScript
 - `npm start` - run compiled app
 - `npm run setup` - initialize Notion databases
+- `npx -p typescript tsc --noEmit` - type-check (node_modules not installed locally)
 
 ## Deployment
 - Push to main → GitHub Actions SSH → deploy.sh on VPS
@@ -21,10 +22,9 @@ Telegram bot that classifies messages via Claude API and saves to Notion databas
 
 ## Architecture
 - `src/index.ts` - entry point: Express server + bot startup (webhook or long polling)
-- `src/bot/` - grammY bot setup, command handlers, message handler, intent detection
+- `src/bot/` - grammY bot setup, command handlers, message handler, intent detection, review/curation/relation callbacks
 - `src/classifier/` - Claude API classification with Zod schemas
 - `src/digest/` - daily/weekly digest, overview, afternoon reminder, interactive weekly review, cron scheduler
-- `src/bot/handlers/review.ts` - callback handlers for weekly review + idea curation buttons
 - `src/notion/` - Notion API wrapper and database operations
 - `src/utils/` - logger (pino), state, errors, retry, telegram helpers
 - `src/config.ts` - Zod-validated env config
@@ -33,6 +33,8 @@ Telegram bot that classifies messages via Claude API and saves to Notion databas
 - ESM imports with .js extensions (TypeScript with NodeNext resolution)
 - Barrel exports via index.ts in each module
 - Zod for all validation (config, API responses, classification output)
+- All bot responses and digest prompts in German
+- Classification: Claude Haiku 4.5 | Digests/overview: Claude Sonnet 4.5
 
 ## Notion DB Properties
 - Admin: Name, Type, Status (pending/done/cancelled), Priority (high/medium/low), Due Date, Tags
@@ -55,5 +57,5 @@ Telegram bot that classifies messages via Claude API and saves to Notion databas
 - .env is on VPS only (gitignored) — see .env.example for required vars
 - Repo is public — never commit secrets
 - Telegram callback_data has 64-byte limit — use in-memory maps with numeric keys for long IDs (see bouncer, intent, relation patterns in message.ts)
-- node_modules not installed locally — use `npx -p typescript tsc --noEmit` for type-checking
+
 - Notion API `pages.update` with relation property REPLACES all relations — must read-then-append
