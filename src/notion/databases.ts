@@ -359,6 +359,70 @@ export async function findInboxLogByMessageId(
   };
 }
 
+// ─── Review query functions ──────────────────────────────────────────────────
+
+export async function queryStaleProjects(olderThan: Date, pageSize = 5): Promise<NotionPage[]> {
+  const response = await callNotion('queryStaleProjects', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_PROJECTS,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'active' } },
+          { timestamp: 'last_edited_time', last_edited_time: { before: olderThan.toISOString() } },
+        ],
+      },
+      sorts: [{ timestamp: 'last_edited_time', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function queryOldPendingAdmin(olderThan: Date, pageSize = 5): Promise<NotionPage[]> {
+  const response = await callNotion('queryOldPendingAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'pending' } },
+          { timestamp: 'created_time', created_time: { before: olderThan.toISOString() } },
+        ],
+      },
+      sorts: [{ timestamp: 'created_time', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function updatePageProperty(
+  pageId: string,
+  propertyName: string,
+  selectValue: string,
+): Promise<void> {
+  await callNotion('updatePageProperty', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: {
+        [propertyName]: { select: sel(selectValue) },
+      } as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'page_property_updated', pageId, propertyName, selectValue });
+}
+
 // ─── Search & Update functions ───────────────────────────────────────────────
 
 export async function searchByTitle(

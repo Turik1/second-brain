@@ -30,6 +30,12 @@ const ConfigSchema = z.object({
 
   // Classification
   BOUNCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
+
+  // Weekly review
+  WEEKLY_REVIEW_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
