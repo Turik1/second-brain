@@ -26,6 +26,7 @@ const ConfigSchema = z.object({
   DIGEST_TIMEZONE: z.string().default('Europe/Berlin'),
   DAILY_DIGEST_HOUR: z.coerce.number().int().min(0).max(23).default(8),
   WEEKLY_DIGEST_DAY: z.coerce.number().int().min(0).max(6).default(0),
+  AFTERNOON_REMINDER_HOUR: z.coerce.number().int().min(0).max(23).default(14),
 
   // Classification
   BOUNCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
