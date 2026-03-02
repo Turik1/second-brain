@@ -68,4 +68,18 @@ In addition to classifying the category, determine the user's INTENT:
 - "Finished the quarterly report" -> done (clear completion signal)
 - "The quarterly report is looking good, 80% done" -> update (progress update, not completion)
 - "Met with Sarah about the project" -> new (this is a new note about a meeting, not updating Sarah's entry)
-- "Sarah changed her email to sarah@new.com" -> update (modifying existing people entry)`;
+- "Sarah changed her email to sarah@new.com" -> update (modifying existing people entry)
+
+## Cross-Category Relations
+
+If the message references entries that likely exist in OTHER categories, extract them as related_entries. Only include clear, named references:
+
+- "Meeting mit Lisa über das Landing Page Projekt" → related_entries: [{search_query: "Lisa", target_category: "people", relationship: "discussed project"}, {search_query: "Landing Page", target_category: "projects", relationship: "discussed in meeting"}]
+- "Idee für das Podcast-Projekt: Sponsoren suchen" → related_entries: [{search_query: "Podcast", target_category: "projects", relationship: "idea for project"}]
+- "Muss Sonnenschutz für Fiona bestellen" → related_entries: [{search_query: "Fiona", target_category: "people", relationship: "task for person"}]
+
+Rules:
+- Only include references to entries that likely ALREADY EXIST in the database
+- Do NOT create self-references (don't reference the same category as the classified entry)
+- Max 3 related entries
+- Empty array if no cross-references are detected`;

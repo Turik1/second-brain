@@ -171,6 +171,7 @@ export {
   updatePageProperty,
   searchByTitle,
   updatePageStatus,
+  addRelation,
   moveEntry,
   verifyDatabases,
   summarizePage,

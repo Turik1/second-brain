@@ -498,6 +498,26 @@ export async function moveEntry(
   return newPage.id;
 }
 
+// ─── Relation functions ──────────────────────────────────────────────────────
+
+export async function addRelation(
+  pageId: string,
+  relationPropertyName: string,
+  targetPageId: string,
+): Promise<void> {
+  await callNotion('addRelation', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: {
+        [relationPropertyName]: {
+          relation: [{ id: targetPageId }],
+        },
+      } as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'relation_added', pageId, relationPropertyName, targetPageId });
+}
+
 // ─── Verify databases ────────────────────────────────────────────────────────
 
 export interface DatabaseVerificationResult {

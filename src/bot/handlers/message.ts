@@ -7,6 +7,9 @@ import {
   updateInboxLogStatus,
   findInboxLogByMessageId,
   fileToDatabase,
+  searchByTitle,
+  summarizePage,
+  addRelation,
 } from '../../notion/index.js';
 import {
   checkRateLimit,
@@ -25,6 +28,17 @@ interface PendingBouncer {
   timestamp: number;
 }
 const pendingBouncerMap = new Map<string, PendingBouncer>();
+
+// In-memory map of pending relation callbacks: numeric key -> relation details
+interface PendingRelation {
+  sourcePageId: string;
+  targetPageId: string;
+  targetCategory: string;
+  timestamp: number;
+}
+
+let nextRelationKey = 1;
+const pendingRelationMap = new Map<number, PendingRelation>();
 
 // Bouncer stale cleanup: mark pending entries older than 24h as expired
 const BOUNCER_EXPIRY_MS = 24 * 60 * 60 * 1000;
@@ -194,6 +208,53 @@ export function registerMessageHandler(bot: Bot): void {
   // Handle bouncer callback queries
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
+
+    // Handle relation callbacks
+    if (data.startsWith('rel:') && !data.startsWith('rel-skip:')) {
+      const key = parseInt(data.slice(4), 10);
+      const pending = pendingRelationMap.get(key);
+      if (!pending) {
+        await ctx.answerCallbackQuery();
+        await ctx.reply('Dieser Vorschlag ist abgelaufen.');
+        return;
+      }
+      pendingRelationMap.delete(key);
+      await ctx.answerCallbackQuery();
+
+      const RELATION_PROPERTY: Record<string, string> = {
+        people: 'Related People',
+        projects: 'Related Projects',
+        ideas: 'Related Ideas',
+        admin: 'Related Admin',
+      };
+      const propName = RELATION_PROPERTY[pending.targetCategory];
+      if (propName) {
+        try {
+          await addRelation(pending.sourcePageId, propName, pending.targetPageId);
+          await ctx.editMessageText(
+            `${ctx.callbackQuery.message?.text ?? ''}\n\n→ ✓ Verknüpft`,
+            { parse_mode: 'HTML' },
+          );
+          logger.info({ event: 'relation_created', sourcePageId: pending.sourcePageId, targetPageId: pending.targetPageId, targetCategory: pending.targetCategory });
+        } catch (err) {
+          logger.error({ event: 'relation_failed', error: String(err) });
+          await ctx.reply('Fehler beim Verknüpfen.');
+        }
+      }
+      return;
+    }
+
+    if (data.startsWith('rel-skip:')) {
+      const key = parseInt(data.slice(9), 10);
+      pendingRelationMap.delete(key);
+      await ctx.answerCallbackQuery();
+      await ctx.editMessageText(
+        `${ctx.callbackQuery.message?.text ?? ''}\n\n→ Übersprungen`,
+        { parse_mode: 'HTML' },
+      );
+      return;
+    }
+
     if (!data.startsWith('bounce:')) return;
 
     const parts = data.split(':');
@@ -240,6 +301,7 @@ export function registerMessageHandler(bot: Bot): void {
       extras: {},
       intent: 'new',
       searchQuery: null,
+      relatedEntries: [],
     };
 
     incrementPending();
@@ -310,6 +372,12 @@ async function fileAndReceipt(
     parse_mode: 'HTML',
     reply_parameters: { message_id: messageId },
   });
+
+  try {
+    await suggestRelations(ctx, classification, targetPageId);
+  } catch (err) {
+    logger.warn({ event: 'relation_suggestion_failed', error: String(err) });
+  }
 }
 
 async function fileAndReceiptDirect(
@@ -358,6 +426,63 @@ async function fileAndReceiptDirect(
   markMessageProcessed();
 
   await ctx.reply(buildReceipt(classification, messageId), { parse_mode: 'HTML' });
+}
+
+const DB_MAP: Record<string, string> = {
+  people: config.NOTION_DB_PEOPLE,
+  projects: config.NOTION_DB_PROJECTS,
+  ideas: config.NOTION_DB_IDEAS,
+  admin: config.NOTION_DB_ADMIN,
+};
+
+const CATEGORY_LABELS_FULL: Record<string, string> = {
+  people: 'Kontakte',
+  projects: 'Projekte',
+  ideas: 'Ideen',
+  admin: 'Admin',
+};
+
+async function suggestRelations(
+  ctx: any,
+  classification: ClassificationResult,
+  sourcePageId: string,
+): Promise<void> {
+  if (!classification.relatedEntries || classification.relatedEntries.length === 0) return;
+
+  for (const entry of classification.relatedEntries) {
+    if (entry.target_category === classification.category) continue;
+
+    const dbId = DB_MAP[entry.target_category];
+    if (!dbId) continue;
+
+    try {
+      const results = await searchByTitle(dbId, entry.search_query, 3);
+
+      if (results.length === 1) {
+        const targetTitle = summarizePage(results[0]).slice(0, 60);
+        const targetCategoryLabel = CATEGORY_LABELS_FULL[entry.target_category] ?? entry.target_category;
+
+        const relKey = nextRelationKey++;
+        pendingRelationMap.set(relKey, {
+          sourcePageId,
+          targetPageId: results[0].id,
+          targetCategory: entry.target_category,
+          timestamp: Date.now(),
+        });
+
+        const keyboard = new InlineKeyboard()
+          .text('Verknüpfen', `rel:${relKey}`)
+          .text('Ignorieren', `rel-skip:${relKey}`);
+
+        await ctx.reply(
+          `🔗 Verknüpfung erkannt:\n→ ${targetTitle} (${targetCategoryLabel})\n<i>${entry.relationship}</i>`,
+          { parse_mode: 'HTML', reply_markup: keyboard },
+        );
+      }
+    } catch (err) {
+      logger.warn({ event: 'relation_search_failed', query: entry.search_query, error: String(err) });
+    }
+  }
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

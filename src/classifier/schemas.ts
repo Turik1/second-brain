@@ -50,6 +50,13 @@ export const ClassificationSchema = z.object({
   search_query: z.string().nullable().describe(
     'For update/done intents: the name or title to search for in Notion (1-3 distinctive words). null for new intent.',
   ),
+  related_entries: z.array(z.object({
+    search_query: z.string().describe('1-3 distinctive words to find the related entry in Notion'),
+    target_category: z.enum(['people', 'projects', 'ideas', 'admin']),
+    relationship: z.string().describe('Brief description of the relationship, e.g. "works on this project"'),
+  })).max(3).default([]).describe(
+    'References to existing entries in other categories. Only include if the message clearly references known people, projects, ideas, or tasks by name.',
+  ),
 });
 
 export type ClassificationOutput = z.infer<typeof ClassificationSchema>;
