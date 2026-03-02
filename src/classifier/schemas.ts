@@ -22,6 +22,9 @@ export const ClassificationSchema = z.object({
       status: z.enum(['idea', 'active', 'blocked', 'completed', 'archived']),
       description: z.string(),
       priority: z.enum(['high', 'medium', 'low']),
+      next_action: z.string().nullable().describe(
+        'Concrete next physical action to move this project forward. Extract if mentioned, null otherwise.',
+      ),
     }),
     z.object({
       category: z.literal('ideas'),

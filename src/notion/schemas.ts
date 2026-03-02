@@ -16,6 +16,7 @@ export interface ProjectEntry {
   description: string;
   tags: string[];
   priority: 'high' | 'medium' | 'low';
+  nextAction: string | null;
   sourceMessage: string;
   sourceMessageId: number;
   confidence: number;

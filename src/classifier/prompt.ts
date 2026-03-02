@@ -5,6 +5,7 @@ export const CLASSIFICATION_SYSTEM_PROMPT = `You are a personal knowledge manage
 **people** - Any mention of a person, meeting someone, conversation notes, contact information, relationship updates. Key signal: a person's name is central to the message.
 
 **projects** - Work items, project updates, tasks related to a specific initiative, progress notes, blockers, milestones. Key signal: references a named project or ongoing work effort.
+For projects, also extract the **next action** if mentioned — the concrete next physical step to move the project forward. For example, if the user says "Landing Page Projekt — muss noch Hosting aussuchen", the next_action is "Hosting aussuchen". If no next step is mentioned, set to null.
 
 **ideas** - New concepts, shower thoughts, business ideas, technical insights, creative sparks, research directions. Key signal: the message describes something that doesn't exist yet or a novel connection.
 

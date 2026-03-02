@@ -84,6 +84,7 @@ function toClassificationResult(output: ClassificationOutput): ClassificationRes
     extras['status'] = fields.status;
     extras['description'] = fields.description;
     extras['priority'] = fields.priority;
+    extras['next_action'] = fields.next_action;
   } else if (fields.category === 'ideas') {
     extras['idea_category'] = fields.idea_category;
     extras['description'] = fields.description;

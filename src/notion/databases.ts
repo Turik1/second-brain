@@ -103,6 +103,7 @@ export async function createProjectsPage(data: ProjectEntry): Promise<string> {
           Description: { rich_text: richText(data.description) },
           Tags: { multi_select: multiSelect(data.tags) },
           Priority: { select: sel(data.priority) },
+          ...(data.nextAction ? { 'Next Action': { rich_text: richText(data.nextAction) } } : {}),
           'Source Message': { rich_text: richText(data.sourceMessage) },
           'Source Message ID': { number: data.sourceMessageId },
           Confidence: { number: data.confidence },

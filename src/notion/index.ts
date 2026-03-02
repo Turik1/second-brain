@@ -242,6 +242,7 @@ export async function fileToDatabase(
             | 'archived') ?? 'active',
         description: (extras['description'] as string) ?? classification.summary,
         priority: (extras['priority'] as 'high' | 'medium' | 'low') ?? 'medium',
+        nextAction: (extras['next_action'] as string | null) ?? null,
         ...base,
       });
 
