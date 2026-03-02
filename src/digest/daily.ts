@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { queryRecentEntries, summarizePage } from '../notion/index.js';
+import { queryRecentEntries, queryPendingAdmin, summarizePage } from '../notion/index.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
 import { DAILY_DIGEST_SYSTEM_PROMPT } from './prompt.js';
 
@@ -43,12 +43,17 @@ export async function generateDailyDigest(sendFn: (text: string) => Promise<void
 
   logger.info({ event: 'digest_start', type: 'daily', since });
 
-  const [people, projects, ideas, admin] = await Promise.all([
+  const [people, projects, ideas, adminPages] = await Promise.all([
     queryCategory(config.NOTION_DB_PEOPLE, since),
     queryCategory(config.NOTION_DB_PROJECTS, since),
     queryCategory(config.NOTION_DB_IDEAS, since),
-    queryCategory(config.NOTION_DB_ADMIN, since),
+    queryPendingAdmin(PAGE_SIZE),
   ]);
+
+  const admin = {
+    entries: adminPages.map((p) => summarizePage(p).slice(0, 200)),
+    truncated: adminPages.length === PAGE_SIZE,
+  };
 
   const totalEntries =
     people.entries.length + projects.entries.length + ideas.entries.length + admin.entries.length;

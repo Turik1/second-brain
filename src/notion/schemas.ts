@@ -16,6 +16,7 @@ export interface ProjectEntry {
   description: string;
   tags: string[];
   priority: 'high' | 'medium' | 'low';
+  nextAction: string | null;
   sourceMessage: string;
   sourceMessageId: number;
   confidence: number;
@@ -37,6 +38,7 @@ export interface AdminEntry {
   type: 'task' | 'reminder' | 'appointment' | 'errand' | 'note';
   dueDate: string | null;
   status: 'pending' | 'done' | 'cancelled';
+  priority: 'high' | 'medium' | 'low';
   tags: string[];
   sourceMessage: string;
   sourceMessageId: number;

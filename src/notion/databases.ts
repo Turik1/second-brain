@@ -103,6 +103,7 @@ export async function createProjectsPage(data: ProjectEntry): Promise<string> {
           Description: { rich_text: richText(data.description) },
           Tags: { multi_select: multiSelect(data.tags) },
           Priority: { select: sel(data.priority) },
+          ...(data.nextAction ? { 'Next Action': { rich_text: richText(data.nextAction) } } : {}),
           'Source Message': { rich_text: richText(data.sourceMessage) },
           'Source Message ID': { number: data.sourceMessageId },
           Confidence: { number: data.confidence },
@@ -142,6 +143,7 @@ export async function createAdminPage(data: AdminEntry): Promise<string> {
     Name: { title: richText(data.name) },
     Type: { select: sel(data.type) },
     Status: { select: sel(data.status) },
+    Priority: { select: sel(data.priority) },
     Tags: { multi_select: multiSelect(data.tags) },
     'Source Message': { rich_text: richText(data.sourceMessage) },
     'Source Message ID': { number: data.sourceMessageId },
@@ -285,6 +287,53 @@ export async function queryByProperty(
   }));
 }
 
+export async function queryPendingAdmin(pageSize = 50): Promise<NotionPage[]> {
+  const response = await callNotion('queryPendingAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        property: 'Status',
+        select: { equals: 'pending' },
+      },
+      sorts: [
+        { property: 'Due Date', direction: 'ascending' },
+        { timestamp: 'created_time', direction: 'descending' },
+      ],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function queryDueAdmin(onOrBefore: Date, pageSize = 50): Promise<NotionPage[]> {
+  const response = await callNotion('queryDueAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'pending' } },
+          { property: 'Due Date', date: { on_or_before: onOrBefore.toISOString().split('T')[0] } },
+        ],
+      },
+      sorts: [{ property: 'Due Date', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
 export async function findInboxLogByMessageId(
   messageId: number,
 ): Promise<NotionPage | null> {
@@ -308,6 +357,70 @@ export async function findInboxLogByMessageId(
     created_time: page.created_time,
     last_edited_time: page.last_edited_time,
   };
+}
+
+// ─── Review query functions ──────────────────────────────────────────────────
+
+export async function queryStaleProjects(olderThan: Date, pageSize = 5): Promise<NotionPage[]> {
+  const response = await callNotion('queryStaleProjects', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_PROJECTS,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'active' } },
+          { timestamp: 'last_edited_time', last_edited_time: { before: olderThan.toISOString() } },
+        ],
+      },
+      sorts: [{ timestamp: 'last_edited_time', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function queryOldPendingAdmin(olderThan: Date, pageSize = 5): Promise<NotionPage[]> {
+  const response = await callNotion('queryOldPendingAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        and: [
+          { property: 'Status', select: { equals: 'pending' } },
+          { timestamp: 'created_time', created_time: { before: olderThan.toISOString() } },
+        ],
+      },
+      sorts: [{ timestamp: 'created_time', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
+export async function updatePageProperty(
+  pageId: string,
+  propertyName: string,
+  selectValue: string,
+): Promise<void> {
+  await callNotion('updatePageProperty', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: {
+        [propertyName]: { select: sel(selectValue) },
+      } as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'page_property_updated', pageId, propertyName, selectValue });
 }
 
 // ─── Search & Update functions ───────────────────────────────────────────────
@@ -385,6 +498,41 @@ export async function moveEntry(
   return newPage.id;
 }
 
+// ─── Relation functions ──────────────────────────────────────────────────────
+
+export async function addRelation(
+  pageId: string,
+  relationPropertyName: string,
+  targetPageId: string,
+): Promise<void> {
+  // Read existing relations to avoid overwriting
+  const page = await callNotion('addRelation_read', () =>
+    notionClient.pages.retrieve({ page_id: pageId }),
+  );
+
+  const existingProp = (page as Record<string, unknown> & { properties: Record<string, unknown> }).properties?.[relationPropertyName] as Record<string, unknown> | undefined;
+  const existingRelations: Array<{ id: string }> =
+    (existingProp?.['relation'] as Array<{ id: string }>) ?? [];
+
+  // Avoid duplicates
+  if (existingRelations.some((r) => r.id === targetPageId)) {
+    logger.info({ event: 'relation_already_exists', pageId, targetPageId });
+    return;
+  }
+
+  await callNotion('addRelation', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: {
+        [relationPropertyName]: {
+          relation: [...existingRelations, { id: targetPageId }],
+        },
+      } as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'relation_added', pageId, relationPropertyName, targetPageId });
+}
+
 // ─── Verify databases ────────────────────────────────────────────────────────
 
 export interface DatabaseVerificationResult {
@@ -432,17 +580,32 @@ export function summarizePage(page: NotionPage): string {
   const props = page.properties;
   let title = '';
   let body = '';
+  const meta: string[] = [];
 
-  for (const val of Object.values(props)) {
+  for (const [key, val] of Object.entries(props)) {
     if (typeof val !== 'object' || val === null) continue;
     const v = val as Record<string, unknown>;
+
     if (v['type'] === 'title' && Array.isArray(v['title'])) {
       title = extractText(v['title']);
+    } else if (v['type'] === 'rich_text' && Array.isArray(v['rich_text']) && key === 'Next Action') {
+      const text = extractText(v['rich_text']);
+      if (text) meta.push(`next: ${text.slice(0, 80)}`);
     } else if (v['type'] === 'rich_text' && Array.isArray(v['rich_text']) && !body) {
       const text = extractText(v['rich_text']);
       if (text) body = text.slice(0, 200);
+    } else if (v['type'] === 'select' && v['select']) {
+      const selectVal = (v['select'] as Record<string, unknown>)['name'] as string | undefined;
+      if (selectVal && (key === 'Priority' || key === 'Status')) {
+        meta.push(`${key}: ${selectVal}`);
+      }
+    } else if (v['type'] === 'date' && v['date'] && key === 'Due Date') {
+      const dateObj = v['date'] as Record<string, unknown>;
+      const start = dateObj['start'] as string | undefined;
+      if (start) meta.push(`fällig: ${start}`);
     }
   }
 
-  return body ? `${title}: ${body}` : title;
+  const metaStr = meta.length > 0 ? ` [${meta.join(', ')}]` : '';
+  return body ? `${title}${metaStr}: ${body}` : `${title}${metaStr}`;
 }

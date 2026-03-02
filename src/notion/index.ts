@@ -164,8 +164,14 @@ export {
   updateInboxLogStatus,
   queryRecentEntries,
   queryByProperty,
+  queryPendingAdmin,
+  queryDueAdmin,
+  queryStaleProjects,
+  queryOldPendingAdmin,
+  updatePageProperty,
   searchByTitle,
   updatePageStatus,
+  addRelation,
   moveEntry,
   verifyDatabases,
   summarizePage,
@@ -240,6 +246,7 @@ export async function fileToDatabase(
             | 'archived') ?? 'active',
         description: (extras['description'] as string) ?? classification.summary,
         priority: (extras['priority'] as 'high' | 'medium' | 'low') ?? 'medium',
+        nextAction: (extras['next_action'] as string | null) ?? null,
         ...base,
       });
 
@@ -271,6 +278,7 @@ export async function fileToDatabase(
             | 'note') ?? 'task',
         dueDate: (extras['due_date'] as string | null) ?? null,
         status: 'pending',
+        priority: (extras['priority'] as 'high' | 'medium' | 'low') ?? 'medium',
         ...base,
       });
 

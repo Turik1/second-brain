@@ -13,6 +13,11 @@ export interface ClassificationResult {
   extras: Record<string, unknown>;
   intent: Intent;
   searchQuery: string | null;
+  relatedEntries: Array<{
+    search_query: string;
+    target_category: 'people' | 'projects' | 'ideas' | 'admin';
+    relationship: string;
+  }>;
 }
 
 export interface InboxEntry {

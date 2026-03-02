@@ -3,7 +3,7 @@ export const DAILY_DIGEST_SYSTEM_PROMPT = `You are a personal knowledge manageme
 Generate a concise, scannable digest with these sections:
 
 1. <b>Quick Stats</b> - Count of entries per category
-2. <b>Action Items</b> - Any admin tasks that need attention today
+2. <b>Action Items</b> - Admin tasks that need attention. OVERDUE tasks (past due date) should be highlighted with a warning. Sort by urgency: overdue first, then due today, then no deadline.
 3. <b>Key Highlights</b> - The 2-3 most notable entries across all categories
 4. <b>Connections</b> - Any interesting patterns or connections between today's entries (e.g., "You mentioned [person] in context of [project]")
 
@@ -18,7 +18,7 @@ This is NOT a time-based digest. This is a snapshot of "what's on my plate right
 Generate a concise overview with these sections:
 
 1. <b>Dashboard</b> - Quick counts: X active projects, Y pending tasks, Z recent contacts, W ideas
-2. <b>Active Projects</b> - List each active/blocked project with its status and description
+2. <b>Active Projects</b> - List each active/blocked project with its status, description, and next action. If a project has no next action defined, note it as "\u26a0\ufe0f Kein n\u00e4chster Schritt definiert".
 3. <b>Pending Tasks</b> - Admin items that need attention, sorted by urgency
 4. <b>Recent People</b> - Who you've interacted with recently and key context
 5. <b>Ideas Pipeline</b> - Notable ideas, grouped by potential. If there are uncurated ideas (potential: unknown), mention the count so the user knows to review them.
