@@ -13,11 +13,15 @@ const ThoughtMetadataSchema = z.object({
   topics: z.array(z.string()).max(5),
   people: z.array(z.string()),
   action_items: z.array(z.string()),
+  due_date: z.string().nullable().optional(),
+  priority: z.enum(['high', 'medium', 'low']).nullable().optional(),
 });
 
 export type ThoughtMetadata = z.infer<typeof ThoughtMetadataSchema>;
 
-const SYSTEM_PROMPT = `Du bist ein Metadaten-Extraktor. Analysiere die Nachricht und extrahiere strukturierte Metadaten. Antworte NUR mit einem JSON-Objekt, ohne Erklärung.
+export async function extractMetadata(content: string): Promise<ThoughtMetadata> {
+  const today = new Date().toISOString().split('T')[0];
+  const systemPrompt = `Du bist ein Metadaten-Extraktor. Analysiere die Nachricht und extrahiere strukturierte Metadaten. Antworte NUR mit einem JSON-Objekt, ohne Erklärung.
 
 Regeln:
 - title: Kurze Zusammenfassung (max 80 Zeichen), auf Deutsch
@@ -31,13 +35,14 @@ Regeln:
   - meeting: Meeting-Notizen, Gesprächszusammenfassungen
 - topics: Bis zu 5 relevante Themen-Tags (kurze Wörter)
 - people: Alle erwähnten Personennamen
-- action_items: Konkrete nächste Schritte oder Aufgaben (leer wenn keine)`;
+- action_items: Konkrete nächste Schritte oder Aufgaben (leer wenn keine)
+- due_date: ISO-Datum (YYYY-MM-DD) wenn ein konkretes Datum oder relativer Zeitbezug im Text vorkommt ("morgen", "nächsten Freitag", "bis Ende März"). Heute ist ${today}. null wenn kein Datum erkennbar.
+- priority: "high", "medium", oder "low" wenn Dringlichkeit erkennbar ("dringend", "wichtig", "asap" = high, "irgendwann", "wenn Zeit ist" = low). null wenn keine Dringlichkeit erkennbar.`;
 
-export async function extractMetadata(content: string): Promise<ThoughtMetadata> {
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content }],
   });
 
@@ -53,6 +58,8 @@ export async function extractMetadata(content: string): Promise<ThoughtMetadata>
       topics: [],
       people: [],
       action_items: [],
+      due_date: null,
+      priority: null,
     };
   }
 
@@ -67,6 +74,8 @@ export async function extractMetadata(content: string): Promise<ThoughtMetadata>
       topics: [],
       people: [],
       action_items: [],
+      due_date: null,
+      priority: null,
     };
   }
 }

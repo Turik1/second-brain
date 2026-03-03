@@ -10,6 +10,8 @@ const ThoughtMetadataSchema = z.object({
   topics: z.array(z.string()).max(5),
   people: z.array(z.string()),
   action_items: z.array(z.string()),
+  due_date: z.string().nullable().optional(),
+  priority: z.enum(['high', 'medium', 'low']).nullable().optional(),
 });
 
 describe('ThoughtMetadata schema', () => {
@@ -47,5 +49,33 @@ describe('ThoughtMetadata schema', () => {
         action_items: [],
       })
     ).toThrow();
+  });
+
+  it('should include due_date and priority in schema shape', () => {
+    const result = ThoughtMetadataSchema.parse({
+      title: 'Dringend: Report bis Freitag',
+      thought_type: 'task',
+      topics: ['report'],
+      people: [],
+      action_items: ['Report schreiben'],
+      due_date: '2026-03-07',
+      priority: 'high',
+    });
+    expect(result.due_date).toBe('2026-03-07');
+    expect(result.priority).toBe('high');
+  });
+
+  it('should accept null due_date and priority (fallback values)', () => {
+    const result = ThoughtMetadataSchema.parse({
+      title: 'Interessanter Gedanke',
+      thought_type: 'insight',
+      topics: [],
+      people: [],
+      action_items: [],
+      due_date: null,
+      priority: null,
+    });
+    expect(result.due_date).toBeNull();
+    expect(result.priority).toBeNull();
   });
 });
