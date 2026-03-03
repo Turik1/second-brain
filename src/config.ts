@@ -37,6 +37,9 @@ const ConfigSchema = z.object({
   // Classification
   BOUNCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
 
+  // MCP
+  MCP_ACCESS_KEY: z.string().min(1, 'MCP_ACCESS_KEY is required'),
+
   // Weekly review
   WEEKLY_REVIEW_ENABLED: z
     .string()
