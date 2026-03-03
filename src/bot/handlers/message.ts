@@ -55,7 +55,10 @@ export function registerMessageHandler(bot: Bot): void {
           thought.people?.length ? `Personen: ${thought.people.join(', ')}` : '',
         ].filter(Boolean).join('\n');
 
-        await ctx.reply(receipt, { parse_mode: 'HTML' });
+        await ctx.reply(receipt, {
+          parse_mode: 'HTML',
+          reply_parameters: { message_id: telegramMessageId },
+        });
       } else {
         await ctx.reply('Fehler beim Speichern. Bitte erneut versuchen.');
       }

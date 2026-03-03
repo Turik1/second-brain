@@ -1,5 +1,6 @@
 import { Bot } from 'grammy';
 import { logger } from '../../utils/logger.js';
+import { findThoughtBySourceId, updateThoughtStatus, listOpenTasks } from '../../db/index.js';
 import { generateDailyDigest, generateWeeklyDigest, generateOverview } from '../../digest/index.js';
 
 export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => Promise<void>): void {
@@ -25,6 +26,39 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
         'Schick mir einfach Text, um Gedanken zu erfassen.',
       { parse_mode: 'HTML' },
     );
+  });
+
+  bot.command('done', async (ctx) => {
+    const replyTo = ctx.message?.reply_to_message;
+    if (!replyTo) {
+      await ctx.reply('Antworte auf eine Nachricht mit /done, um sie als erledigt zu markieren.');
+      return;
+    }
+
+    // The receipt is a reply to the original — get the original message ID
+    // grammY strips reply_to_message from ReplyMessage type, but it exists at runtime
+    const nested = replyTo as { reply_to_message?: { message_id: number } };
+    const originalMessageId = nested.reply_to_message?.message_id ?? replyTo.message_id;
+    const chatId = ctx.chat.id;
+
+    const thought = await findThoughtBySourceId(String(originalMessageId), chatId);
+    if (!thought) {
+      await ctx.reply('Gedanke nicht gefunden.');
+      return;
+    }
+
+    if (thought.status === 'done') {
+      await ctx.reply('Bereits erledigt.');
+      return;
+    }
+
+    const updated = await updateThoughtStatus(thought.id, 'done');
+    if (updated) {
+      await ctx.reply(`✓ Erledigt: ${updated.title ?? updated.content.slice(0, 50)}`);
+      logger.info({ thoughtId: updated.id, title: updated.title }, 'Thought marked done');
+    } else {
+      await ctx.reply('Fehler beim Aktualisieren.');
+    }
   });
 
   bot.command('digest', async (ctx) => {
