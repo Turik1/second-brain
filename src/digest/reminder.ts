@@ -1,64 +1,35 @@
 import { logger } from '../utils/logger.js';
-import { listTasksWithActions } from '../db/index.js';
+import { getOpenTaskStats } from '../db/index.js';
 
 export async function generateAfternoonReminder(sendFn: (text: string) => Promise<void>): Promise<void> {
   const startMs = Date.now();
-
   logger.info({ event: 'reminder_start' });
 
-  let rows;
   try {
-    rows = await listTasksWithActions(7);
+    const stats = await getOpenTaskStats();
+
+    if (stats.open === 0) {
+      logger.info({ event: 'reminder_skip', reason: 'no_open_tasks', durationMs: Date.now() - startMs });
+      return;
+    }
+
+    const lines: string[] = [];
+    lines.push(`<b>📋 ${stats.open} offene Aufgaben</b>`);
+    if (stats.overdue > 0) lines.push(`⚠️ ${stats.overdue} überfällig`);
+    if (stats.dueToday > 0) lines.push(`📅 ${stats.dueToday} fällig heute`);
+    lines.push('');
+    lines.push('Nutze /open für die vollständige Liste.');
+
+    await sendFn(lines.join('\n'));
+
+    logger.info({
+      event: 'reminder_sent',
+      open: stats.open,
+      overdue: stats.overdue,
+      dueToday: stats.dueToday,
+      durationMs: Date.now() - startMs,
+    });
   } catch (err) {
     logger.error({ event: 'reminder_error', error: String(err) }, 'Afternoon reminder failed');
-    return;
   }
-
-  if (rows.length === 0) {
-    logger.info({ event: 'reminder_skip', reason: 'no_due_tasks', durationMs: Date.now() - startMs });
-    return;
-  }
-
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const recentItems: string[] = [];
-  const olderItems: string[] = [];
-
-  for (const thought of rows) {
-    const createdStr = thought.created_at.toISOString().split('T')[0];
-    const label = thought.title ?? thought.content.slice(0, 80);
-    const actions = thought.action_items.join('; ');
-    const summary = `${label} — ${actions}`.slice(0, 150);
-
-    if (createdStr === todayStr) {
-      recentItems.push(`• ${summary}`);
-    } else {
-      const daysAgo = Math.floor((today.getTime() - thought.created_at.getTime()) / 86400000);
-      olderItems.push(`• ${summary} (vor ${daysAgo} Tag${daysAgo > 1 ? 'en' : ''})`);
-    }
-  }
-
-  const lines: string[] = [];
-  lines.push(`<b>Reminder: ${recentItems.length} heute, ${olderItems.length} offen</b>`);
-  lines.push('');
-
-  if (recentItems.length > 0) {
-    lines.push('<b>Heute erfasst:</b>');
-    lines.push(...recentItems);
-    lines.push('');
-  }
-
-  if (olderItems.length > 0) {
-    lines.push('<b>Offene Aufgaben:</b>');
-    lines.push(...olderItems);
-  }
-
-  await sendFn(lines.join('\n'));
-
-  logger.info({
-    event: 'reminder_sent',
-    todayCount: recentItems.length,
-    olderCount: olderItems.length,
-    durationMs: Date.now() - startMs,
-  });
 }
