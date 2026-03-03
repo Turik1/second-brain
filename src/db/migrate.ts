@@ -27,6 +27,13 @@ CREATE INDEX IF NOT EXISTS thoughts_embedding_idx ON thoughts USING hnsw (embedd
 CREATE UNIQUE INDEX IF NOT EXISTS thoughts_source_dedup_idx ON thoughts (source, source_id) WHERE source_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS thoughts_created_idx ON thoughts (created_at DESC);
 CREATE INDEX IF NOT EXISTS thoughts_type_idx ON thoughts (thought_type);
+
+ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'open';
+ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS priority VARCHAR(10);
+
+CREATE INDEX IF NOT EXISTS thoughts_status_idx ON thoughts (status) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS thoughts_due_date_idx ON thoughts (due_date) WHERE due_date IS NOT NULL AND status = 'open';
 `;
 
 export async function runMigrations(): Promise<void> {

@@ -11,6 +11,9 @@ export interface Thought {
   source: string;
   source_id: string | null;
   chat_id: number | null;
+  status: string;
+  due_date: Date | null;
+  priority: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -26,12 +29,14 @@ export interface ThoughtInsert {
   source?: string;
   source_id?: string;
   chat_id?: number;
+  due_date?: string;
+  priority?: string;
 }
 
 export async function insertThought(data: ThoughtInsert): Promise<Thought | null> {
   const { rows } = await pool.query(
-    `INSERT INTO thoughts (content, embedding, title, thought_type, topics, people, action_items, source, source_id, chat_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO thoughts (content, embedding, title, thought_type, topics, people, action_items, source, source_id, chat_id, due_date, priority)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (source, source_id) WHERE source_id IS NOT NULL DO NOTHING
      RETURNING *`,
     [
@@ -45,6 +50,8 @@ export async function insertThought(data: ThoughtInsert): Promise<Thought | null
       data.source ?? 'telegram',
       data.source_id ?? null,
       data.chat_id ?? null,
+      data.due_date ?? null,
+      data.priority ?? null,
     ]
   );
   return rows[0] ?? null;
