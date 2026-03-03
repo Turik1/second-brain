@@ -1,10 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { listRecent } from '../db/index.js';
+import { listRecent, listOverdue, listDueToday } from '../db/index.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
 import { DAILY_DIGEST_SYSTEM_PROMPT } from './prompt.js';
-import { formatThoughtsForDigest } from './format.js';
+import { formatThoughtsForDigest, formatOpenTasksSection } from './format.js';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
@@ -14,8 +14,12 @@ export async function generateDailyDigest(sendFn: (text: string) => Promise<void
   logger.info({ event: 'digest_start', type: 'daily' });
 
   const recentThoughts = await listRecent(1, 100);
+  const [overdueTasks, dueTodayTasks] = await Promise.all([
+    listOverdue(),
+    listDueToday(),
+  ]);
 
-  if (recentThoughts.length === 0) {
+  if (recentThoughts.length === 0 && overdueTasks.length === 0 && dueTodayTasks.length === 0) {
     await sendFn('Nothing captured yesterday. Fresh start today!');
     logger.info({ event: 'digest_sent', type: 'daily', entriesCount: 0, durationMs: Date.now() - startMs });
     return;
@@ -23,7 +27,11 @@ export async function generateDailyDigest(sendFn: (text: string) => Promise<void
 
   // Truncate to ~8K token budget (4 chars/token estimate)
   const TOKEN_BUDGET_CHARS = 8000 * 4;
-  let formattedInput = formatThoughtsForDigest(recentThoughts);
+  let actionSection = '';
+  if (overdueTasks.length > 0 || dueTodayTasks.length > 0) {
+    actionSection = formatOpenTasksSection(overdueTasks, dueTodayTasks) + '\n\n';
+  }
+  let formattedInput = actionSection + formatThoughtsForDigest(recentThoughts);
   if (formattedInput.length > TOKEN_BUDGET_CHARS) {
     formattedInput = formattedInput.slice(0, TOKEN_BUDGET_CHARS) + '\n\n[Input truncated to fit token budget]';
   }

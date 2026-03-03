@@ -2,6 +2,8 @@ export const DAILY_DIGEST_SYSTEM_PROMPT = `You are a personal knowledge manageme
 
 Each thought has a title or content snippet, and may include topics, people mentioned, and action items.
 
+If an ACTIONABLE section is present, prioritize it. Start the digest with overdue and due-today tasks before covering other highlights.
+
 Generate a concise, scannable digest with these sections:
 
 1. <b>Quick Stats</b> - Count of thoughts per type

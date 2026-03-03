@@ -1,6 +1,24 @@
 import type { Thought } from '../db/index.js';
 import type { getThoughtStats } from '../db/index.js';
 
+export function formatOpenTasksSection(overdue: Thought[], dueToday: Thought[]): string {
+  const lines: string[] = ['ACTIONABLE:'];
+  if (overdue.length > 0) {
+    lines.push(`Overdue (${overdue.length}):`);
+    for (const t of overdue) {
+      const due = t.due_date ? new Date(t.due_date).toISOString().slice(0, 10) : '';
+      lines.push(`- ${t.title ?? t.content.slice(0, 80)} (fällig: ${due})`);
+    }
+  }
+  if (dueToday.length > 0) {
+    lines.push(`Due today (${dueToday.length}):`);
+    for (const t of dueToday) {
+      lines.push(`- ${t.title ?? t.content.slice(0, 80)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
 export function formatThoughtsForDigest(thoughts: Thought[]): string {
   if (thoughts.length === 0) return '';
 
