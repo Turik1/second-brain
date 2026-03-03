@@ -6,15 +6,20 @@
 // ─── Last message tracking ────────────────────────────────────────────────────
 
 let _lastMessageProcessed: Date | null = null;
-let _notionConnected = false;
+let _dbConnected = false;
 let _pendingMessages = 0;
 
 export function markMessageProcessed(): void {
   _lastMessageProcessed = new Date();
 }
 
+export function setDbConnected(ok: boolean): void {
+  _dbConnected = ok;
+}
+
+/** @deprecated Use setDbConnected instead */
 export function setNotionConnected(ok: boolean): void {
-  _notionConnected = ok;
+  _dbConnected = ok;
 }
 
 export function incrementPending(): void {
@@ -27,12 +32,12 @@ export function decrementPending(): void {
 
 export function getHealthState(): {
   lastMessageProcessed: string | null;
-  notionConnected: boolean;
+  dbConnected: boolean;
   pendingMessages: number;
 } {
   return {
     lastMessageProcessed: _lastMessageProcessed?.toISOString() ?? null,
-    notionConnected: _notionConnected,
+    dbConnected: _dbConnected,
     pendingMessages: _pendingMessages,
   };
 }

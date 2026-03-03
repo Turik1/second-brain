@@ -5,7 +5,7 @@ import { webhookCallback } from 'grammy';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
-import { getHealthState, setNotionConnected } from './utils/state.js';
+import { getHealthState, setDbConnected } from './utils/state.js';
 import { createBot } from './bot/index.js';
 import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
 import { runMigrations, closePool } from './db/index.js';
@@ -139,13 +139,13 @@ async function main() {
       const webhookUrl = `${config.WEBHOOK_DOMAIN}${webhookPath}`;
       await bot.api.setWebhook(webhookUrl);
       logger.info({ webhookUrl }, 'Webhook set');
-      setNotionConnected(true);
+      setDbConnected(true);
     });
   } else {
     // Long polling for development
     server = app.listen(config.PORT, () => {
       logger.info({ port: config.PORT }, 'Express server listening (dev mode)');
-      setNotionConnected(true);
+      setDbConnected(true);
     });
 
     await bot.start({
