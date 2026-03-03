@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { searchThoughts, listRecent, getThoughtStats } from '../db/index.js';
+import { searchThoughts, listRecent, getThoughtStats, listOpenTasks, updateThoughtStatus } from '../db/index.js';
 import { captureThought } from '../brain/index.js';
 import { generateEmbedding } from '../embeddings/index.js';
 
@@ -125,6 +125,61 @@ export function createMcpServer(): McpServer {
             `- People: ${thought.people?.join(', ') || 'none'}`,
           ].join('\n'),
         }],
+      };
+    }
+  );
+
+  server.tool(
+    'list_open_tasks',
+    'List all open tasks and projects, sorted by due date. Use this to see what needs attention.',
+    {
+      limit: z.number().int().min(1).max(50).default(20).describe('Max results'),
+      priority: z.string().optional().describe('Filter by priority: high, medium, low'),
+    },
+    async ({ limit, priority }) => {
+      const tasks = await listOpenTasks(limit, priority);
+      const formatted = tasks.map((t) => {
+        const parts = [`**${t.title ?? 'Untitled'}** (${t.thought_type ?? 'task'})`];
+        if (t.due_date) parts.push(`Due: ${new Date(t.due_date).toISOString().slice(0, 10)}`);
+        if (t.priority) parts.push(`Priority: ${t.priority}`);
+        if (t.action_items?.length) parts.push(`Action items: ${t.action_items.join('; ')}`);
+        parts.push(`Captured: ${t.created_at.toISOString().slice(0, 10)}`);
+        parts.push(`ID: ${t.id}`);
+        return parts.join('\n');
+      });
+      return {
+        content: [{
+          type: 'text' as const,
+          text: tasks.length
+            ? `${tasks.length} open tasks:\n\n` + formatted.join('\n\n---\n\n')
+            : 'No open tasks. Everything is done!',
+        }],
+      };
+    }
+  );
+
+  server.tool(
+    'complete_thought',
+    'Mark a thought/task as done by its ID.',
+    { id: z.string().uuid().describe('The thought ID to mark as done') },
+    async ({ id }) => {
+      const updated = await updateThoughtStatus(id, 'done');
+      if (!updated) return { content: [{ type: 'text' as const, text: `Thought ${id} not found.` }] };
+      return {
+        content: [{ type: 'text' as const, text: `Marked as done: ${updated.title ?? updated.content.slice(0, 50)}` }],
+      };
+    }
+  );
+
+  server.tool(
+    'delete_thought',
+    'Soft-delete a thought by its ID (sets status to cancelled).',
+    { id: z.string().uuid().describe('The thought ID to delete') },
+    async ({ id }) => {
+      const updated = await updateThoughtStatus(id, 'cancelled');
+      if (!updated) return { content: [{ type: 'text' as const, text: `Thought ${id} not found.` }] };
+      return {
+        content: [{ type: 'text' as const, text: `Deleted: ${updated.title ?? updated.content.slice(0, 50)}` }],
       };
     }
   );
