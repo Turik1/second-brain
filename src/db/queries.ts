@@ -227,6 +227,14 @@ export async function findThoughtBySourceId(sourceId: string, chatId: number): P
   return rows[0] ?? null;
 }
 
+export async function updateThoughtDueDate(id: string, dueDate: string | null): Promise<Thought | null> {
+  const { rows } = await pool.query<Thought>(
+    `UPDATE thoughts SET due_date = $2, updated_at = now() WHERE id = $1 RETURNING *`,
+    [id, dueDate]
+  );
+  return rows[0] ?? null;
+}
+
 export async function getOpenTaskStats(): Promise<{ open: number; overdue: number; dueToday: number }> {
   const { rows } = await pool.query<{ open: string; overdue: string; due_today: string }>(
     `SELECT

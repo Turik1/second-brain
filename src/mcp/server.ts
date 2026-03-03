@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { searchThoughts, listRecent, getThoughtStats, listOpenTasks, updateThoughtStatus } from '../db/index.js';
+import { searchThoughts, listRecent, getThoughtStats, listOpenTasks, updateThoughtStatus, updateThoughtDueDate } from '../db/index.js';
 import { captureThought } from '../brain/index.js';
 import { generateEmbedding } from '../embeddings/index.js';
 
@@ -191,6 +191,23 @@ export function createMcpServer(): McpServer {
       if (!updated) return { content: [{ type: 'text' as const, text: `Thought ${id} not found.` }] };
       return {
         content: [{ type: 'text' as const, text: `Deleted: ${updated.title ?? updated.content.slice(0, 50)}` }],
+      };
+    }
+  );
+
+  server.tool(
+    'update_due_date',
+    'Change the due date of a thought/task by its ID. Set to null to remove the due date.',
+    {
+      id: z.string().uuid().describe('The thought ID'),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().describe('New due date (ISO format YYYY-MM-DD) or null to remove'),
+    },
+    async ({ id, due_date }) => {
+      const updated = await updateThoughtDueDate(id, due_date);
+      if (!updated) return { content: [{ type: 'text' as const, text: `Thought ${id} not found.` }] };
+      const dateStr = due_date ?? 'removed';
+      return {
+        content: [{ type: 'text' as const, text: `Due date set to ${dateStr}: ${updated.title ?? updated.content.slice(0, 50)}` }],
       };
     }
   );
