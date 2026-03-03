@@ -37,6 +37,18 @@ export function getHealthState(): {
   };
 }
 
+// ─── CalDAV cache invalidation ───────────────────────────────────────────────
+
+let _caldavInvalidate: (() => void) | null = null;
+
+export function setCaldavInvalidator(fn: () => void): void {
+  _caldavInvalidate = fn;
+}
+
+export function invalidateCaldavCache(): void {
+  _caldavInvalidate?.();
+}
+
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
 
 const RATE_LIMIT_WINDOW_MS = 60_000;

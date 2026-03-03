@@ -31,6 +31,14 @@ const ConfigSchema = z.object({
   // Classification
   BOUNCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
 
+  // CalDAV
+  CALDAV_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v !== 'false'),
+  CALDAV_USERNAME: z.string().optional(),
+  CALDAV_PASSWORD: z.string().optional(),
+
   // Weekly review
   WEEKLY_REVIEW_ENABLED: z
     .string()

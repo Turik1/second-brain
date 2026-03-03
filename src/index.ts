@@ -4,9 +4,10 @@ import express from 'express';
 import { webhookCallback, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
-import { getHealthState, setNotionConnected } from './utils/state.js';
+import { getHealthState, setNotionConnected, setCaldavInvalidator } from './utils/state.js';
 import { createBot } from './bot/index.js';
 import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
+import { createCaldavRouter } from './caldav/index.js';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,20 @@ async function main() {
       ...getHealthState(),
     });
   });
+
+  // CalDAV server for iOS Calendar integration
+  if (config.CALDAV_ENABLED) {
+    const { router: caldavRouter, cache: caldavCache } = createCaldavRouter();
+    app.use('/caldav', caldavRouter);
+
+    // .well-known/caldav discovery (RFC 6764)
+    app.all('/.well-known/caldav', (_req, res) => {
+      res.redirect(301, '/caldav/principal/');
+    });
+
+    setCaldavInvalidator(() => caldavCache.invalidate());
+    logger.info({ event: 'caldav_enabled' }, 'CalDAV server mounted at /caldav');
+  }
 
   const isWebhookMode =
     config.NODE_ENV === 'production' && config.WEBHOOK_DOMAIN !== undefined;

@@ -16,6 +16,7 @@ import {
   incrementPending,
   decrementPending,
   markMessageProcessed,
+  invalidateCaldavCache,
 } from '../../utils/state.js';
 import type { ClassificationResult, Category } from '../../types.js';
 import { handleDoneIntent, handleUpdateIntent } from './intent.js';
@@ -363,6 +364,8 @@ async function fileAndReceipt(
     return;
   }
 
+  if (classification.category === 'admin') invalidateCaldavCache();
+
   try {
     await updateInboxLogStatus(
       inboxLogPageId,
@@ -419,6 +422,8 @@ async function fileAndReceiptDirect(
     );
     return;
   }
+
+  if (classification.category === 'admin') invalidateCaldavCache();
 
   try {
     await updateInboxLogStatus(

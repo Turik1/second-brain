@@ -34,3 +34,14 @@ export class BotError extends Error {
     this.name = 'BotError';
   }
 }
+
+export class CalDavError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number = 500,
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = 'CalDavError';
+  }
+}
