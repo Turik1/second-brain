@@ -5,7 +5,6 @@ import { logger } from '../utils/logger.js';
 import { generateDailyDigest } from './daily.js';
 import { generateWeeklyDigest } from './weekly.js';
 import { generateAfternoonReminder } from './reminder.js';
-import { cleanupStaleBouncer, cleanupStaleRelations } from '../bot/handlers/message.js';
 
 export function initializeScheduler(
   sendFn: (text: string) => Promise<void>,
@@ -23,19 +22,6 @@ export function initializeScheduler(
         await generateDailyDigest(sendFn);
       } catch (err) {
         logger.error({ event: 'digest_error', type: 'daily', error: err }, 'Daily digest failed');
-      }
-      // Clean up stale bouncer entries (24h expiry)
-      if (bot) {
-        try {
-          await cleanupStaleBouncer(bot);
-        } catch (err) {
-          logger.error({ event: 'bouncer_cleanup_error', error: err }, 'Bouncer cleanup failed');
-        }
-      }
-      try {
-        cleanupStaleRelations();
-      } catch (err) {
-        logger.error({ event: 'relation_cleanup_error', error: err }, 'Relation cleanup failed');
       }
     },
     { timezone },
