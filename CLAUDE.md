@@ -22,7 +22,7 @@ Telegram bot that captures thoughts via Claude API metadata extraction, stores i
 - `src/extractor/` - Claude Haiku metadata extraction
 - `src/mcp/` - MCP server with 4 tools (search, list, stats, capture)
 - `src/digest/` - daily/weekly digest, overview, afternoon reminder, cron scheduler
-- `src/utils/` - logger (pino), state, errors
+- `src/utils/` - logger (pino), state, telegram helpers
 - `src/config.ts` - Zod-validated env config
 
 ## Data Model

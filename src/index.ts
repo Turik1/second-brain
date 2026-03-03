@@ -125,7 +125,7 @@ async function main() {
   const isWebhookMode =
     config.NODE_ENV === 'production' && config.WEBHOOK_DOMAIN !== undefined;
 
-  const scheduler = initializeScheduler(sendToUser, bot);
+  const scheduler = initializeScheduler(sendToUser);
 
   let server: http.Server;
 

@@ -1,5 +1,4 @@
 import cron from 'node-cron';
-import type { Bot } from 'grammy';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { generateDailyDigest } from './daily.js';
@@ -8,7 +7,6 @@ import { generateAfternoonReminder } from './reminder.js';
 
 export function initializeScheduler(
   sendFn: (text: string) => Promise<void>,
-  bot?: Bot,
 ): { stop: () => void } {
   const dailySchedule = `0 ${config.DAILY_DIGEST_HOUR} * * *`;
   const weeklySchedule = `0 ${config.DAILY_DIGEST_HOUR} * * ${config.WEEKLY_DIGEST_DAY}`;
