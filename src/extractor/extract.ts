@@ -2,6 +2,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
+import { listKnowledge } from '../db/index.js';
+
+let knowledgeCache: string[] | null = null;
+
+export function invalidateKnowledgeCache(): void {
+  knowledgeCache = null;
+}
+
+async function getKnowledgeFacts(): Promise<string[]> {
+  if (knowledgeCache) return knowledgeCache;
+  const facts = await listKnowledge();
+  knowledgeCache = facts.map(f => f.fact);
+  return knowledgeCache;
+}
 
 const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
@@ -21,6 +35,10 @@ export type ThoughtMetadata = z.infer<typeof ThoughtMetadataSchema>;
 
 export async function extractMetadata(content: string): Promise<ThoughtMetadata> {
   const today = new Date().toISOString().split('T')[0];
+  const facts = await getKnowledgeFacts();
+  const knowledgeBlock = facts.length > 0
+    ? `\n\nDu kennst folgenden persönlichen Kontext des Nutzers:\n${facts.map(f => `- ${f}`).join('\n')}\n\nBerücksichtige dieses Wissen bei der Klassifizierung.`
+    : '';
   const systemPrompt = `Du bist ein Metadaten-Extraktor. Analysiere die Nachricht und extrahiere strukturierte Metadaten. Antworte NUR mit einem JSON-Objekt, ohne Erklärung.
 
 Regeln:
@@ -37,7 +55,7 @@ Regeln:
 - people: Alle erwähnten Personennamen
 - action_items: Konkrete nächste Schritte oder Aufgaben (leer wenn keine)
 - due_date: ISO-Datum (YYYY-MM-DD) wenn ein konkretes Datum oder relativer Zeitbezug im Text vorkommt ("morgen", "nächsten Freitag", "bis Ende März"). Heute ist ${today}. null wenn kein Datum erkennbar.
-- priority: "high", "medium", oder "low" wenn Dringlichkeit erkennbar ("dringend", "wichtig", "asap" = high, "irgendwann", "wenn Zeit ist" = low). null wenn keine Dringlichkeit erkennbar.`;
+- priority: "high", "medium", oder "low" wenn Dringlichkeit erkennbar ("dringend", "wichtig", "asap" = high, "irgendwann", "wenn Zeit ist" = low). null wenn keine Dringlichkeit erkennbar.${knowledgeBlock}`;
 
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',

@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { searchThoughts, listRecent, getThoughtStats, listOpenTasks, updateThoughtStatus, updateThoughtDueDate } from '../db/index.js';
+import { searchThoughts, listRecent, getThoughtStats, listOpenTasks, updateThoughtStatus, updateThoughtDueDate, insertKnowledge } from '../db/index.js';
 import { captureThought } from '../brain/index.js';
 import { generateEmbedding } from '../embeddings/index.js';
+import { invalidateKnowledgeCache } from '../extractor/extract.js';
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -208,6 +209,21 @@ export function createMcpServer(): McpServer {
       const dateStr = due_date ?? 'removed';
       return {
         content: [{ type: 'text' as const, text: `Due date set to ${dateStr}: ${updated.title ?? updated.content.slice(0, 50)}` }],
+      };
+    }
+  );
+
+  server.tool(
+    'add_knowledge',
+    'Teach the bot a personal fact that will be used in future classifications. E.g. "Pavel ist ein Hund, keine Person".',
+    {
+      fact: z.string().min(3).max(500).describe('The fact to remember'),
+    },
+    async ({ fact }) => {
+      await insertKnowledge(fact);
+      invalidateKnowledgeCache();
+      return {
+        content: [{ type: 'text' as const, text: `Learned: ${fact}` }],
       };
     }
   );

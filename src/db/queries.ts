@@ -249,3 +249,32 @@ export async function getOpenTaskStats(): Promise<{ open: number; overdue: numbe
     dueToday: Number(rows[0].due_today),
   };
 }
+
+export interface KnowledgeFact {
+  id: string;
+  fact: string;
+  created_at: Date;
+}
+
+export async function insertKnowledge(fact: string): Promise<KnowledgeFact> {
+  const { rows } = await pool.query<KnowledgeFact>(
+    `INSERT INTO knowledge (fact) VALUES ($1) RETURNING *`,
+    [fact]
+  );
+  return rows[0];
+}
+
+export async function listKnowledge(): Promise<KnowledgeFact[]> {
+  const { rows } = await pool.query<KnowledgeFact>(
+    `SELECT * FROM knowledge ORDER BY created_at`
+  );
+  return rows;
+}
+
+export async function deleteKnowledge(id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM knowledge WHERE id = $1`,
+    [id]
+  );
+  return (rowCount ?? 0) > 0;
+}

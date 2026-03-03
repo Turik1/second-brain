@@ -1,11 +1,15 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import { logger } from '../../utils/logger.js';
-import { findThoughtBySourceId, updateThoughtStatus, updateThoughtDueDate, listOpenTasks } from '../../db/index.js';
+import { findThoughtBySourceId, updateThoughtStatus, updateThoughtDueDate, listOpenTasks, insertKnowledge, listKnowledge, deleteKnowledge } from '../../db/index.js';
 import { generateDailyDigest, generateWeeklyDigest, generateOverview } from '../../digest/index.js';
+import { invalidateKnowledgeCache } from '../../extractor/extract.js';
 
 // In-memory map for callback data (Telegram 64-byte limit on callback_data)
 const openTaskMap = new Map<number, string>(); // numeric key -> thought UUID
 let openTaskCounter = 0;
+
+const knowledgeMap = new Map<number, string>();
+let knowledgeCounter = 0;
 
 /** Parse German/English date expressions into ISO date string. Returns null if unparseable. */
 function parseDate(input: string): string | null {
@@ -101,6 +105,8 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
         '/done — (Reply) Aufgabe als erledigt markieren\n' +
         '/delete — (Reply) Gedanke löschen\n' +
         '/postpone — (Reply) Due Date ändern\n' +
+        '/correct — Wissen beibringen (z.B. /correct Pavel ist ein Hund)\n' +
+        '/knowledge — Gespeichertes Wissen anzeigen/löschen\n' +
         '/digest — Daily digest (last 24h)\n' +
         '/weekly — Weekly digest (last 7 days)\n' +
         '/overview — Current state overview\n\n' +
@@ -350,6 +356,67 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
       logger.info({ thoughtId: updated.id, newDate, title: updated.title }, 'Due date updated via button');
     } else {
       await ctx.answerCallbackQuery({ text: 'Fehler beim Aktualisieren.' });
+    }
+  });
+
+  bot.command('correct', async (ctx) => {
+    const fact = ctx.message?.text?.replace(/^\/correct\s*/i, '').trim();
+    if (!fact) {
+      await ctx.reply('Schreib: /correct <Fakt>\n\nBeispiel: /correct Pavel ist unser Hund, keine Person');
+      return;
+    }
+
+    await insertKnowledge(fact);
+    invalidateKnowledgeCache();
+    await ctx.reply(`💡 Gelernt: ${fact}`);
+    logger.info({ fact }, 'Knowledge fact added');
+  });
+
+  bot.command('knowledge', async (ctx) => {
+    const facts = await listKnowledge();
+
+    if (facts.length === 0) {
+      await ctx.reply('Noch kein Wissen gespeichert. Nutze /correct um etwas beizubringen.');
+      return;
+    }
+
+    knowledgeMap.clear();
+    knowledgeCounter = 0;
+
+    const lines = [`<b>Wissen (${facts.length})</b>\n`];
+    const keyboard = new InlineKeyboard();
+
+    for (const f of facts) {
+      const key = ++knowledgeCounter;
+      knowledgeMap.set(key, f.id);
+      lines.push(`${key}. ${f.fact}`);
+      keyboard.text(`✗ ${key}`, `delknow:${key}`).row();
+    }
+
+    await ctx.reply(lines.join('\n'), {
+      parse_mode: 'HTML',
+      reply_markup: keyboard,
+    });
+  });
+
+  bot.callbackQuery(/^delknow:(\d+)$/, async (ctx) => {
+    const key = parseInt(ctx.match![1]);
+    const knowledgeId = knowledgeMap.get(key);
+
+    if (!knowledgeId) {
+      await ctx.answerCallbackQuery({ text: 'Eintrag nicht mehr verfügbar.' });
+      return;
+    }
+
+    const deleted = await deleteKnowledge(knowledgeId);
+    knowledgeMap.delete(key);
+
+    if (deleted) {
+      invalidateKnowledgeCache();
+      await ctx.answerCallbackQuery({ text: 'Wissen gelöscht.' });
+      logger.info({ knowledgeId }, 'Knowledge fact deleted');
+    } else {
+      await ctx.answerCallbackQuery({ text: 'Fehler beim Löschen.' });
     }
   });
 

@@ -34,6 +34,12 @@ ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS priority VARCHAR(10);
 
 CREATE INDEX IF NOT EXISTS thoughts_status_idx ON thoughts (status) WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS thoughts_due_date_idx ON thoughts (due_date) WHERE due_date IS NOT NULL AND status = 'open';
+
+CREATE TABLE IF NOT EXISTS knowledge (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fact       TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 `;
 
 export async function runMigrations(): Promise<void> {
