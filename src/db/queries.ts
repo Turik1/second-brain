@@ -154,3 +154,70 @@ export async function listTasksWithActions(days = 7): Promise<Thought[]> {
   );
   return rows;
 }
+
+export async function listOpenTasks(limit = 20, priority?: string): Promise<Thought[]> {
+  const priorityFilter = priority ? 'AND priority = $2' : '';
+  const params: unknown[] = [limit];
+  if (priority) params.push(priority);
+
+  const { rows } = await pool.query<Thought>(
+    `SELECT * FROM thoughts
+     WHERE status = 'open' AND thought_type IN ('task', 'project')
+     ${priorityFilter}
+     ORDER BY due_date ASC NULLS LAST, created_at DESC
+     LIMIT $1`,
+    params
+  );
+  return rows;
+}
+
+export async function listOverdue(): Promise<Thought[]> {
+  const { rows } = await pool.query<Thought>(
+    `SELECT * FROM thoughts
+     WHERE status = 'open' AND due_date < CURRENT_DATE
+     AND thought_type IN ('task', 'project')
+     ORDER BY due_date ASC`
+  );
+  return rows;
+}
+
+export async function listDueToday(): Promise<Thought[]> {
+  const { rows } = await pool.query<Thought>(
+    `SELECT * FROM thoughts
+     WHERE status = 'open' AND due_date = CURRENT_DATE
+     AND thought_type IN ('task', 'project')
+     ORDER BY created_at DESC`
+  );
+  return rows;
+}
+
+export async function updateThoughtStatus(id: string, status: 'open' | 'done' | 'cancelled'): Promise<Thought | null> {
+  const { rows } = await pool.query<Thought>(
+    `UPDATE thoughts SET status = $2, updated_at = now() WHERE id = $1 RETURNING *`,
+    [id, status]
+  );
+  return rows[0] ?? null;
+}
+
+export async function findThoughtBySourceId(sourceId: string, chatId: number): Promise<Thought | null> {
+  const { rows } = await pool.query<Thought>(
+    `SELECT * FROM thoughts WHERE source_id = $1 AND chat_id = $2`,
+    [sourceId, chatId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getOpenTaskStats(): Promise<{ open: number; overdue: number; dueToday: number }> {
+  const { rows } = await pool.query<{ open: string; overdue: string; due_today: string }>(
+    `SELECT
+       count(*) FILTER (WHERE status = 'open' AND thought_type IN ('task', 'project')) AS open,
+       count(*) FILTER (WHERE status = 'open' AND due_date < CURRENT_DATE AND thought_type IN ('task', 'project')) AS overdue,
+       count(*) FILTER (WHERE status = 'open' AND due_date = CURRENT_DATE AND thought_type IN ('task', 'project')) AS due_today
+     FROM thoughts`
+  );
+  return {
+    open: Number(rows[0].open),
+    overdue: Number(rows[0].overdue),
+    dueToday: Number(rows[0].due_today),
+  };
+}
