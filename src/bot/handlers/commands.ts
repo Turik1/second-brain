@@ -61,6 +61,32 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
     }
   });
 
+  bot.command('delete', async (ctx) => {
+    const replyTo = ctx.message?.reply_to_message;
+    if (!replyTo) {
+      await ctx.reply('Antworte auf eine Nachricht mit /delete, um sie zu löschen.');
+      return;
+    }
+
+    const nested = replyTo as { reply_to_message?: { message_id: number } };
+    const originalMessageId = nested.reply_to_message?.message_id ?? replyTo.message_id;
+    const chatId = ctx.chat.id;
+
+    const thought = await findThoughtBySourceId(String(originalMessageId), chatId);
+    if (!thought) {
+      await ctx.reply('Gedanke nicht gefunden.');
+      return;
+    }
+
+    const updated = await updateThoughtStatus(thought.id, 'cancelled');
+    if (updated) {
+      await ctx.reply(`Gelöscht: ${updated.title ?? updated.content.slice(0, 50)}`);
+      logger.info({ thoughtId: updated.id, title: updated.title }, 'Thought cancelled');
+    } else {
+      await ctx.reply('Fehler beim Löschen.');
+    }
+  });
+
   bot.command('digest', async (ctx) => {
     logger.info({ messageId: ctx.message?.message_id }, 'Command: /digest');
     await ctx.reply('Generating daily digest...');
