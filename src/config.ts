@@ -21,6 +21,9 @@ const ConfigSchema = z.object({
   // Postgres
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
+  // Embeddings
+  VOYAGE_API_KEY: z.string().min(1, 'VOYAGE_API_KEY is required'),
+
   // Server
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production']).default('production'),
