@@ -4,7 +4,7 @@ import express from 'express';
 import { webhookCallback, InlineKeyboard } from 'grammy';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
-import { getHealthState, setNotionConnected } from './utils/state.js';
+import { getHealthState, setNotionConnected, setCaldavInvalidator } from './utils/state.js';
 import { createBot } from './bot/index.js';
 import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
 import { createCaldavRouter } from './caldav/index.js';
@@ -86,7 +86,7 @@ async function main() {
 
   // CalDAV server for iOS Calendar integration
   if (config.CALDAV_ENABLED) {
-    const { router: caldavRouter } = createCaldavRouter();
+    const { router: caldavRouter, cache: caldavCache } = createCaldavRouter();
     app.use('/caldav', caldavRouter);
 
     // .well-known/caldav discovery (RFC 6764)
@@ -94,6 +94,7 @@ async function main() {
       res.redirect(301, '/caldav/principal/');
     });
 
+    setCaldavInvalidator(() => caldavCache.invalidate());
     logger.info({ event: 'caldav_enabled' }, 'CalDAV server mounted at /caldav');
   }
 
