@@ -18,6 +18,9 @@ const ConfigSchema = z.object({
   NOTION_DB_ADMIN: z.string().min(1, 'NOTION_DB_ADMIN is required'),
   NOTION_DB_INBOX_LOG: z.string().min(1, 'NOTION_DB_INBOX_LOG is required'),
 
+  // Postgres
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+
   // Server
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production']).default('production'),
