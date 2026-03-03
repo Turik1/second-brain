@@ -358,6 +358,10 @@ export async function queryAllAdmin(pageSize = 100): Promise<NotionPage[]> {
     }),
   );
 
+  if (response.has_more) {
+    logger.warn({ event: 'caldav_query_truncated', pageSize, total: 'unknown' }, 'queryAllAdmin returned more than pageSize results');
+  }
+
   return response.results.map((page) => ({
     id: page.id,
     properties: page.properties,

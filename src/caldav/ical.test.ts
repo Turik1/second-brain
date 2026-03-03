@@ -126,7 +126,7 @@ describe('parseVEvent', () => {
       'BEGIN:VEVENT',
       'UID:test-uid',
       'DTSTART;VALUE=DATE:20260305',
-      'SUMMARY:A very long task name that was',
+      'SUMMARY:A very long task name that was ',
       ' folded by the client',
       'END:VEVENT',
       'END:VCALENDAR',

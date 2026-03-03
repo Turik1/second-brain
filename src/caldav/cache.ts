@@ -77,13 +77,4 @@ export class CalDavCache {
     return this.uidToPageId.get(uid) ?? uid;
   }
 
-  removePage(pageId: string): void {
-    this.pages.delete(pageId);
-    // Recompute ctag
-    let maxEdited = '';
-    for (const page of this.pages.values()) {
-      if (page.last_edited_time > maxEdited) maxEdited = page.last_edited_time;
-    }
-    this.ctag = maxEdited || new Date().toISOString();
-  }
 }

@@ -103,7 +103,7 @@ export function buildMultigetResponse(events: EventResponseEntry[]): string {
     <D:propstat>
       <D:prop>
         <D:getetag>${e.etag}</D:getetag>
-        <C:calendar-data>${e.calendarData}</C:calendar-data>
+        <C:calendar-data><![CDATA[${e.calendarData}]]></C:calendar-data>
       </D:prop>
       <D:status>HTTP/1.1 200 OK</D:status>
     </D:propstat>

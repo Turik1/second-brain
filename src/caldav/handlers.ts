@@ -7,6 +7,7 @@ import {
 } from '../notion/index.js';
 import type { CalDavCache } from './cache.js';
 import { pageToVEvent, wrapCalendar, parseVEvent } from './ical.js';
+import { extractTitle, extractDate, extractSelect } from './notion-helpers.js';
 import {
   buildPrincipalPropfind,
   buildCalendarHomePropfind,
@@ -173,10 +174,21 @@ export function createHandlers(cache: CalDavCache) {
       }
 
       const updates: { name?: string; dueDate?: string; status?: string } = {};
-      if (parsed.dtstart) updates.dueDate = parsed.dtstart;
-      if (parsed.summary) updates.name = parsed.summary;
-      if (parsed.status === 'COMPLETED') updates.status = 'done';
-      else if (parsed.status === 'CANCELLED') updates.status = 'cancelled';
+
+      const currentName = extractTitle(existingPage);
+      const currentDate = extractDate(existingPage, 'Due Date');
+      const currentStatus = extractSelect(existingPage, 'Status');
+
+      if (parsed.dtstart && parsed.dtstart !== currentDate) updates.dueDate = parsed.dtstart;
+      if (parsed.summary && parsed.summary !== currentName) updates.name = parsed.summary;
+      if (parsed.status === 'COMPLETED' && currentStatus !== 'done') updates.status = 'done';
+      else if (parsed.status === 'CANCELLED' && currentStatus !== 'cancelled') updates.status = 'cancelled';
+
+      if (Object.keys(updates).length === 0) {
+        // Nothing changed, just return 204 with current ETag
+        res.status(204).set('ETag', cache.getEtag(pageId) ?? '""').send();
+        return;
+      }
 
       await updateAdminFromCalendar(pageId, updates);
       cache.invalidate();

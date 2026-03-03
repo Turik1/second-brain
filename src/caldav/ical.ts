@@ -55,7 +55,7 @@ export function pageToVEvent(page: NotionPage): string {
   const tags = extractMultiSelect(page, 'Tags');
   const lastEdited = extractLastEdited(page);
 
-  const categories = [type, ...tags].join(',');
+  const categories = [type, ...tags].map((c) => escapeIcal(c)).join(',');
   const now = formatTimestamp(new Date());
 
   const lines = [
@@ -84,7 +84,7 @@ export interface ParsedVEvent {
 
 /** Unfold iCalendar line folding (RFC 5545 §3.1) */
 function unfold(text: string): string {
-  return text.replace(/\r?\n([ \t])/g, '$1');
+  return text.replace(/\r?\n[ \t]/g, '');
 }
 
 /** Parse a YYYY-MM-DD from various DTSTART formats */
