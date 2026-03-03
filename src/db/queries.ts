@@ -60,16 +60,26 @@ export async function insertThought(data: ThoughtInsert): Promise<Thought | null
 export async function searchThoughts(
   queryEmbedding: number[],
   limit = 10,
-  thoughtType?: string
+  thoughtType?: string,
+  status?: string,
 ): Promise<(Thought & { similarity: number })[]> {
-  const typeFilter = thoughtType ? 'AND thought_type = $3' : '';
+  const filters: string[] = [];
   const params: unknown[] = [JSON.stringify(queryEmbedding), limit];
-  if (thoughtType) params.push(thoughtType);
+
+  if (thoughtType) {
+    params.push(thoughtType);
+    filters.push(`AND thought_type = $${params.length}`);
+  }
+  if (status) {
+    params.push(status);
+    filters.push(`AND status = $${params.length}`);
+  }
+  const filterStr = filters.join(' ');
 
   const { rows } = await pool.query(
     `SELECT *, 1 - (embedding <=> $1::vector) AS similarity
      FROM thoughts
-     WHERE embedding IS NOT NULL ${typeFilter}
+     WHERE embedding IS NOT NULL ${filterStr}
      ORDER BY embedding <=> $1::vector
      LIMIT $2`,
     params
@@ -80,15 +90,25 @@ export async function searchThoughts(
 export async function listRecent(
   days = 7,
   limit = 20,
-  thoughtType?: string
+  thoughtType?: string,
+  status?: string,
 ): Promise<Thought[]> {
-  const typeFilter = thoughtType ? 'AND thought_type = $3' : '';
+  const filters: string[] = [];
   const params: unknown[] = [days, limit];
-  if (thoughtType) params.push(thoughtType);
+
+  if (thoughtType) {
+    params.push(thoughtType);
+    filters.push(`AND thought_type = $${params.length}`);
+  }
+  if (status) {
+    params.push(status);
+    filters.push(`AND status = $${params.length}`);
+  }
+  const filterStr = filters.join(' ');
 
   const { rows } = await pool.query(
     `SELECT * FROM thoughts
-     WHERE created_at > now() - make_interval(days => $1) ${typeFilter}
+     WHERE created_at > now() - make_interval(days => $1) ${filterStr}
      ORDER BY created_at DESC
      LIMIT $2`,
     params

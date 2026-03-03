@@ -17,19 +17,26 @@ export function createMcpServer(): McpServer {
       query: z.string().describe('Search query — describe what you are looking for'),
       limit: z.number().int().min(1).max(50).default(10).describe('Max results'),
       thought_type: z.string().optional().describe('Filter by type: task, person_note, idea, project, insight, decision, meeting'),
+      status: z.string().optional().describe('Filter by status: open, done, cancelled'),
     },
-    async ({ query, limit, thought_type }) => {
+    async ({ query, limit, thought_type, status }) => {
       const queryEmbedding = await generateEmbedding(query, 'query');
-      const results = await searchThoughts(queryEmbedding, limit, thought_type);
+      const results = await searchThoughts(queryEmbedding, limit, thought_type, status);
 
-      const formatted = results.map((r) => [
-        `**${r.title ?? 'Untitled'}** (${r.thought_type ?? 'unknown'}, ${(r.similarity * 100).toFixed(0)}% match)`,
-        r.content,
-        r.topics?.length ? `Topics: ${r.topics.join(', ')}` : '',
-        r.people?.length ? `People: ${r.people.join(', ')}` : '',
-        r.action_items?.length ? `Action items: ${r.action_items.join('; ')}` : '',
-        `Captured: ${r.created_at.toISOString().slice(0, 10)}`,
-      ].filter(Boolean).join('\n'));
+      const formatted = results.map((r) => {
+        const parts = [
+          `**${r.title ?? 'Untitled'}** (${r.thought_type ?? 'unknown'}, ${(r.similarity * 100).toFixed(0)}% match)`,
+          r.content,
+        ];
+        if (r.status !== 'open') parts.push(`Status: ${r.status}`);
+        if (r.due_date) parts.push(`Due: ${new Date(r.due_date).toISOString().slice(0, 10)}`);
+        if (r.priority) parts.push(`Priority: ${r.priority}`);
+        if (r.topics?.length) parts.push(`Topics: ${r.topics.join(', ')}`);
+        if (r.people?.length) parts.push(`People: ${r.people.join(', ')}`);
+        if (r.action_items?.length) parts.push(`Action items: ${r.action_items.join('; ')}`);
+        parts.push(`Captured: ${r.created_at.toISOString().slice(0, 10)}`);
+        return parts.join('\n');
+      });
 
       return {
         content: [{
@@ -49,15 +56,19 @@ export function createMcpServer(): McpServer {
       days: z.number().int().min(1).max(90).default(7).describe('Look back N days'),
       limit: z.number().int().min(1).max(50).default(20).describe('Max results'),
       thought_type: z.string().optional().describe('Filter by type'),
+      status: z.string().optional().describe('Filter by status: open, done, cancelled'),
     },
-    async ({ days, limit, thought_type }) => {
-      const results = await listRecent(days, limit, thought_type);
+    async ({ days, limit, thought_type, status }) => {
+      const results = await listRecent(days, limit, thought_type, status);
 
-      const formatted = results.map((r) => [
-        `**${r.title ?? 'Untitled'}** (${r.thought_type ?? 'unknown'})`,
-        r.content,
-        `Captured: ${r.created_at.toISOString().slice(0, 10)}`,
-      ].join('\n'));
+      const formatted = results.map((r) => {
+        const parts = [`**${r.title ?? 'Untitled'}** (${r.thought_type ?? 'unknown'})`, r.content];
+        if (r.status !== 'open') parts.push(`Status: ${r.status}`);
+        if (r.due_date) parts.push(`Due: ${new Date(r.due_date).toISOString().slice(0, 10)}`);
+        if (r.priority) parts.push(`Priority: ${r.priority}`);
+        parts.push(`Captured: ${r.created_at.toISOString().slice(0, 10)}`);
+        return parts.join('\n');
+      });
 
       return {
         content: [{
