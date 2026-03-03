@@ -334,6 +334,38 @@ export async function queryDueAdmin(onOrBefore: Date, pageSize = 50): Promise<No
   }));
 }
 
+/** Query all admin tasks (pending + recently completed/cancelled) for CalDAV cache */
+export async function queryAllAdmin(pageSize = 100): Promise<NotionPage[]> {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const response = await callNotion('queryAllAdmin', () =>
+    queryDatabase({
+      database_id: config.NOTION_DB_ADMIN,
+      filter: {
+        or: [
+          { property: 'Status', select: { equals: 'pending' } },
+          {
+            and: [
+              { property: 'Status', select: { does_not_equal: 'pending' } },
+              { timestamp: 'last_edited_time', last_edited_time: { on_or_after: thirtyDaysAgo.toISOString() } },
+            ],
+          },
+        ],
+      },
+      sorts: [{ property: 'Due Date', direction: 'ascending' }],
+      page_size: pageSize,
+    }),
+  );
+
+  return response.results.map((page) => ({
+    id: page.id,
+    properties: page.properties,
+    created_time: page.created_time,
+    last_edited_time: page.last_edited_time,
+  }));
+}
+
 export async function findInboxLogByMessageId(
   messageId: number,
 ): Promise<NotionPage | null> {
@@ -463,6 +495,34 @@ export async function updatePageStatus(
     }),
   );
   logger.info({ event: 'page_status_updated', pageId, status });
+}
+
+/** Update an admin task from CalDAV — supports title, due date, and status changes */
+export async function updateAdminFromCalendar(
+  pageId: string,
+  updates: { name?: string; dueDate?: string; status?: string },
+): Promise<void> {
+  const properties: Record<string, unknown> = {};
+
+  if (updates.name !== undefined) {
+    properties['Name'] = { title: richText(updates.name) };
+  }
+  if (updates.dueDate !== undefined) {
+    properties['Due Date'] = { date: { start: updates.dueDate } };
+  }
+  if (updates.status !== undefined) {
+    properties['Status'] = { select: sel(updates.status) };
+  }
+
+  if (Object.keys(properties).length === 0) return;
+
+  await callNotion('updateAdminFromCalendar', () =>
+    notionClient.pages.update({
+      page_id: pageId,
+      properties: properties as Parameters<typeof notionClient.pages.update>[0]['properties'],
+    }),
+  );
+  logger.info({ event: 'admin_updated_from_caldav', pageId, updates });
 }
 
 // ─── Move entry ──────────────────────────────────────────────────────────────
