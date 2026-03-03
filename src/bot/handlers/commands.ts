@@ -20,6 +20,9 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
       '<b>Commands:</b>\n' +
         '/start — Introduction\n' +
         '/help — This message\n' +
+        '/open — Offene Aufgaben anzeigen\n' +
+        '/done — (Reply) Aufgabe als erledigt markieren\n' +
+        '/delete — (Reply) Gedanke löschen\n' +
         '/digest — Daily digest (last 24h)\n' +
         '/weekly — Weekly digest (last 7 days)\n' +
         '/overview — Current state overview\n\n' +
@@ -85,6 +88,30 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
     } else {
       await ctx.reply('Fehler beim Löschen.');
     }
+  });
+
+  bot.command('open', async (ctx) => {
+    const tasks = await listOpenTasks(20);
+
+    if (tasks.length === 0) {
+      await ctx.reply('Keine offenen Aufgaben. Alles erledigt!');
+      return;
+    }
+
+    const lines = [`<b>Offene Aufgaben (${tasks.length})</b>\n`];
+    for (const t of tasks) {
+      const title = t.title ?? t.content.slice(0, 60);
+      let line = `• ${title}`;
+      if (t.due_date) {
+        const dueStr = new Date(t.due_date).toISOString().slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
+        line += dueStr < today ? ` ⚠️ ${dueStr}` : ` 📅 ${dueStr}`;
+      }
+      if (t.priority === 'high') line += ' 🔴';
+      lines.push(line);
+    }
+
+    await ctx.reply(lines.join('\n'), { parse_mode: 'HTML' });
   });
 
   bot.command('digest', async (ctx) => {
