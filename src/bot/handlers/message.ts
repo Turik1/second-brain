@@ -19,6 +19,7 @@ import {
 } from '../../utils/state.js';
 import type { ClassificationResult, Category } from '../../types.js';
 import { handleDoneIntent, handleUpdateIntent } from './intent.js';
+import { captureThought } from '../../brain/index.js';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -387,6 +388,16 @@ async function fileAndReceipt(
   } catch (err) {
     logger.warn({ event: 'relation_suggestion_failed', error: String(err) });
   }
+
+  // Dual-write to Postgres (fire-and-forget during migration)
+  captureThought({
+    content: text,
+    source: 'telegram',
+    source_id: String(messageId),
+    chat_id: Number(config.ALLOWED_CHAT_ID),
+  }).catch((err) => {
+    logger.error({ error: err }, 'Postgres dual-write failed (non-blocking)');
+  });
 }
 
 async function fileAndReceiptDirect(
@@ -435,6 +446,16 @@ async function fileAndReceiptDirect(
   markMessageProcessed();
 
   await ctx.reply(buildReceipt(classification, messageId), { parse_mode: 'HTML' });
+
+  // Dual-write to Postgres (fire-and-forget during migration)
+  captureThought({
+    content: text,
+    source: 'telegram',
+    source_id: String(messageId),
+    chat_id: Number(config.ALLOWED_CHAT_ID),
+  }).catch((err) => {
+    logger.error({ error: err }, 'Postgres dual-write failed (non-blocking)');
+  });
 }
 
 const DB_MAP: Record<string, string> = {

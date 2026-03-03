@@ -7,11 +7,14 @@ import { logger } from './utils/logger.js';
 import { getHealthState, setNotionConnected } from './utils/state.js';
 import { createBot } from './bot/index.js';
 import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
+import { runMigrations, closePool } from './db/index.js';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'Second Brain starting');
+
+  await runMigrations();
 
   // Handle unhandled rejections without crashing
   process.on('unhandledRejection', (reason) => {
@@ -147,6 +150,7 @@ async function main() {
       // ignore errors during shutdown
     }
 
+    await closePool();
     logger.info('Shutdown complete');
     process.exit(0);
   }
