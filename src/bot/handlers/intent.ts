@@ -7,7 +7,6 @@ import {
   updateInboxLogStatus,
   summarizePage,
 } from '../../notion/index.js';
-import { invalidateCaldavCache } from '../../utils/state.js';
 import type { ClassificationResult, Category } from '../../types.js';
 import type { NotionPage } from '../../notion/index.js';
 
@@ -239,8 +238,6 @@ async function markAsDone(
     return;
   }
 
-  invalidateCaldavCache();
-
   try {
     await updateInboxLogStatus(inboxLogPageId, 'processed', pageId, undefined, Date.now() - startTime);
   } catch (err) {
@@ -274,7 +271,6 @@ async function applyUpdate(
       await ctx.reply('Fehler beim Aktualisieren. Bitte versuche es nochmal.');
       return;
     }
-    invalidateCaldavCache();
   }
 
   try {
