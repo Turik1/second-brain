@@ -2,103 +2,82 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
-import { queryRecentEntries, queryByProperty, queryPendingAdmin, summarizePage } from '../notion/index.js';
+import { listRecent, getThoughtStats } from '../db/index.js';
+import type { Thought } from '../db/index.js';
 import { OVERVIEW_SYSTEM_PROMPT } from './prompt.js';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
-const PAGE_SIZE = 30;
-const PEOPLE_DAYS = 30;
 const TOKEN_BUDGET_CHARS = 8000 * 4;
 
-interface OverviewData {
-  activeProjects: string[];
-  blockedProjects: string[];
-  pendingAdmin: string[];
-  recentPeople: string[];
-  highIdeas: string[];
-  mediumIdeas: string[];
-  unknownIdeaCount: number;
-}
+function formatThoughtsForOverview(thoughts: Thought[]): string {
+  if (thoughts.length === 0) return '';
 
-function formatOverviewInput(data: OverviewData): string {
+  const byType = new Map<string, Thought[]>();
+  for (const t of thoughts) {
+    const type = t.thought_type ?? 'other';
+    if (!byType.has(type)) byType.set(type, []);
+    byType.get(type)!.push(t);
+  }
+
   const sections: string[] = [];
-
-  // Projects
-  const allProjects = [
-    ...data.activeProjects.map((p) => `• [active] ${p}`),
-    ...data.blockedProjects.map((p) => `• [blocked] ${p}`),
-  ];
-  sections.push(
-    `## PROJECTS (${allProjects.length} active/blocked)\n${allProjects.length > 0 ? allProjects.join('\n') : '(none)'}`,
-  );
-
-  // Admin
-  sections.push(
-    `## PENDING ADMIN (${data.pendingAdmin.length})\n${data.pendingAdmin.length > 0 ? data.pendingAdmin.map((a) => `• ${a}`).join('\n') : '(none)'}`,
-  );
-
-  // People
-  sections.push(
-    `## RECENT PEOPLE (last ${PEOPLE_DAYS} days, ${data.recentPeople.length} entries)\n${data.recentPeople.length > 0 ? data.recentPeople.map((p) => `• ${p}`).join('\n') : '(none)'}`,
-  );
-
-  // Ideas
-  const ideaLines = [
-    ...data.highIdeas.map((i) => `• [high] ${i}`),
-    ...data.mediumIdeas.map((i) => `• [medium] ${i}`),
-  ];
-  const unknownNote =
-    data.unknownIdeaCount > 0 ? `\n(${data.unknownIdeaCount} uncurated ideas with unknown potential)` : '';
-  sections.push(
-    `## IDEAS (${ideaLines.length} curated${unknownNote})\n${ideaLines.length > 0 ? ideaLines.join('\n') : '(none)'}`,
-  );
+  for (const [type, items] of byType) {
+    const header = type.toUpperCase().replace('_', ' ');
+    const entries = items.map((t) => {
+      const parts = [`- ${t.title ?? t.content.slice(0, 80)}`];
+      if (t.topics?.length) parts.push(`  Topics: ${t.topics.join(', ')}`);
+      if (t.people?.length) parts.push(`  People: ${t.people.join(', ')}`);
+      if (t.action_items?.length) parts.push(`  Action items: ${t.action_items.join('; ')}`);
+      return parts.join('\n');
+    });
+    sections.push(`${header} (${items.length}):\n${entries.join('\n')}`);
+  }
 
   return sections.join('\n\n');
 }
 
+function formatStatsSection(stats: Awaited<ReturnType<typeof getThoughtStats>>): string {
+  const lines: string[] = ['STATS (last 30 days):'];
+  lines.push(`- Total thoughts: ${stats.total}`);
+
+  if (Object.keys(stats.byType).length > 0) {
+    const typeParts = Object.entries(stats.byType).map(([type, count]) => `${type} (${count})`);
+    lines.push(`- By type: ${typeParts.join(', ')}`);
+  }
+
+  if (stats.topTopics.length > 0) {
+    const topicParts = stats.topTopics.slice(0, 5).map((t) => `${t.topic} (${t.count})`);
+    lines.push(`- Top topics: ${topicParts.join(', ')}`);
+  }
+
+  if (stats.topPeople.length > 0) {
+    const peopleParts = stats.topPeople.slice(0, 5).map((p) => `${p.person} (${p.count})`);
+    lines.push(`- Top people: ${peopleParts.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
 export async function generateOverview(sendFn: (text: string) => Promise<void>): Promise<void> {
   const startMs = Date.now();
-  const peopleSince = new Date(Date.now() - PEOPLE_DAYS * 24 * 60 * 60 * 1000);
 
   logger.info({ event: 'digest_start', type: 'overview' });
 
-  const [activeProjects, blockedProjects, pendingAdmin, recentPeople, highIdeas, mediumIdeas, unknownIdeas] =
-    await Promise.all([
-      queryByProperty(config.NOTION_DB_PROJECTS, 'Status', 'active', PAGE_SIZE),
-      queryByProperty(config.NOTION_DB_PROJECTS, 'Status', 'blocked', PAGE_SIZE),
-      queryPendingAdmin(PAGE_SIZE),
-      queryRecentEntries(config.NOTION_DB_PEOPLE, peopleSince, 20),
-      queryByProperty(config.NOTION_DB_IDEAS, 'Potential', 'high', PAGE_SIZE),
-      queryByProperty(config.NOTION_DB_IDEAS, 'Potential', 'medium', PAGE_SIZE),
-      queryByProperty(config.NOTION_DB_IDEAS, 'Potential', 'unknown', PAGE_SIZE),
-    ]);
+  const [recentThoughts, stats] = await Promise.all([
+    listRecent(30, 100),
+    getThoughtStats(30),
+  ]);
 
-  const totalEntries =
-    activeProjects.length +
-    blockedProjects.length +
-    pendingAdmin.length +
-    recentPeople.length +
-    highIdeas.length +
-    mediumIdeas.length;
-
-  if (totalEntries === 0 && unknownIdeas.length === 0) {
+  if (recentThoughts.length === 0) {
     await sendFn('Your second brain is empty. Start capturing thoughts!');
     logger.info({ event: 'digest_sent', type: 'overview', entriesCount: 0, durationMs: Date.now() - startMs });
     return;
   }
 
-  const data: OverviewData = {
-    activeProjects: activeProjects.map((p) => summarizePage(p).slice(0, 200)),
-    blockedProjects: blockedProjects.map((p) => summarizePage(p).slice(0, 200)),
-    pendingAdmin: pendingAdmin.map((p) => summarizePage(p).slice(0, 200)),
-    recentPeople: recentPeople.map((p) => summarizePage(p).slice(0, 200)),
-    highIdeas: highIdeas.map((p) => summarizePage(p).slice(0, 200)),
-    mediumIdeas: mediumIdeas.map((p) => summarizePage(p).slice(0, 200)),
-    unknownIdeaCount: unknownIdeas.length,
-  };
+  const statsSection = formatStatsSection(stats);
+  const thoughtsSection = formatThoughtsForOverview(recentThoughts);
 
-  let formattedInput = formatOverviewInput(data);
+  let formattedInput = `${statsSection}\n\nTHOUGHTS:\n${thoughtsSection}`;
   if (formattedInput.length > TOKEN_BUDGET_CHARS) {
     formattedInput = formattedInput.slice(0, TOKEN_BUDGET_CHARS) + '\n\n[Input truncated to fit token budget]';
   }
@@ -119,5 +98,5 @@ export async function generateOverview(sendFn: (text: string) => Promise<void>):
   }
 
   const durationMs = Date.now() - startMs;
-  logger.info({ event: 'digest_sent', type: 'overview', entriesCount: totalEntries, durationMs });
+  logger.info({ event: 'digest_sent', type: 'overview', entriesCount: recentThoughts.length, durationMs });
 }

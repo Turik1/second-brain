@@ -1,104 +1,88 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { queryRecentEntries, summarizePage } from '../notion/index.js';
+import { listRecent, getThoughtStats } from '../db/index.js';
+import type { Thought } from '../db/index.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
 import { WEEKLY_DIGEST_SYSTEM_PROMPT } from './prompt.js';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
-const PAGE_SIZE = 50;
-const MAX_TOKENS_ESTIMATE = 15000;
-const CHARS_PER_TOKEN = 4;
-const MAX_CHARS = MAX_TOKENS_ESTIMATE * CHARS_PER_TOKEN;
+const TOKEN_BUDGET_CHARS = 15000 * 4;
 
-async function queryCategory(dbId: string, since: Date): Promise<{ entries: string[]; truncated: boolean }> {
-  const pages = await queryRecentEntries(dbId, since, PAGE_SIZE);
-  const entries = pages.map((p) => summarizePage(p).slice(0, 200));
-  return { entries, truncated: pages.length === PAGE_SIZE };
-}
+function formatThoughtsForDigest(thoughts: Thought[]): string {
+  if (thoughts.length === 0) return '';
 
-async function queryInboxStats(since: Date): Promise<Record<string, number>> {
-  const pages = await queryRecentEntries(config.NOTION_DB_INBOX_LOG, since, PAGE_SIZE);
-  const counts: Record<string, number> = { processed: 0, failed: 0, 're-classified': 0, pending: 0, expired: 0 };
-  for (const page of pages) {
-    const statusProp = page.properties['Status'] as Record<string, unknown> | undefined;
-    if (statusProp?.['type'] === 'select') {
-      const sel = statusProp['select'] as Record<string, unknown> | null;
-      const name = sel?.['name'] as string | undefined;
-      if (name && name in counts) counts[name]++;
-    }
+  const byType = new Map<string, Thought[]>();
+  for (const t of thoughts) {
+    const type = t.thought_type ?? 'other';
+    if (!byType.has(type)) byType.set(type, []);
+    byType.get(type)!.push(t);
   }
-  return counts;
-}
 
-function formatWeeklyInput(
-  categories: Record<string, { entries: string[]; truncated: boolean }>,
-  inboxStats?: Record<string, number>,
-): string {
   const sections: string[] = [];
-  let totalChars = 0;
-
-  for (const [category, { entries, truncated }] of Object.entries(categories)) {
-    if (entries.length === 0) {
-      sections.push(`## ${category.toUpperCase()}\n(none)`);
-      continue;
-    }
-
-    const lines: string[] = [];
-    for (const entry of entries) {
-      const line = `• ${entry}`;
-      if (totalChars + line.length > MAX_CHARS) {
-        lines.push('(older entries omitted due to length limit)');
-        break;
-      }
-      lines.push(line);
-      totalChars += line.length;
-    }
-
-    const note = truncated ? `\n(showing first ${PAGE_SIZE} entries)` : '';
-    sections.push(`## ${category.toUpperCase()}\n${lines.join('\n')}${note}`);
-  }
-
-  if (inboxStats) {
-    const statLines = Object.entries(inboxStats)
-      .filter(([, count]) => count > 0)
-      .map(([status, count]) => `• ${status}: ${count}`)
-      .join('\n');
-    if (statLines) {
-      sections.push(`## INBOX LOG STATS\n${statLines}`);
-    }
+  for (const [type, items] of byType) {
+    const header = type.toUpperCase().replace('_', ' ');
+    const entries = items.map((t) => {
+      const parts = [`- ${t.title ?? t.content.slice(0, 80)}`];
+      if (t.topics?.length) parts.push(`  Topics: ${t.topics.join(', ')}`);
+      if (t.people?.length) parts.push(`  People: ${t.people.join(', ')}`);
+      if (t.action_items?.length) parts.push(`  Action items: ${t.action_items.join('; ')}`);
+      return parts.join('\n');
+    });
+    sections.push(`${header} (${items.length}):\n${entries.join('\n')}`);
   }
 
   return sections.join('\n\n');
+}
+
+function formatStatsSection(stats: Awaited<ReturnType<typeof getThoughtStats>>): string {
+  const lines: string[] = ['STATS:'];
+  lines.push(`- Total thoughts: ${stats.total}`);
+
+  if (Object.keys(stats.byType).length > 0) {
+    const typeParts = Object.entries(stats.byType).map(([type, count]) => `${type} (${count})`);
+    lines.push(`- By type: ${typeParts.join(', ')}`);
+  }
+
+  if (stats.topTopics.length > 0) {
+    const topicParts = stats.topTopics.slice(0, 5).map((t) => `${t.topic} (${t.count})`);
+    lines.push(`- Top topics: ${topicParts.join(', ')}`);
+  }
+
+  if (stats.topPeople.length > 0) {
+    const peopleParts = stats.topPeople.slice(0, 5).map((p) => `${p.person} (${p.count})`);
+    lines.push(`- Top people: ${peopleParts.join(', ')}`);
+  }
+
+  return lines.join('\n');
 }
 
 export async function generateWeeklyDigest(
   sendFn: (text: string) => Promise<void>,
 ): Promise<void> {
   const startMs = Date.now();
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  logger.info({ event: 'digest_start', type: 'weekly', since });
+  logger.info({ event: 'digest_start', type: 'weekly' });
 
-  const [people, projects, ideas, admin, inboxStats] = await Promise.all([
-    queryCategory(config.NOTION_DB_PEOPLE, since),
-    queryCategory(config.NOTION_DB_PROJECTS, since),
-    queryCategory(config.NOTION_DB_IDEAS, since),
-    queryCategory(config.NOTION_DB_ADMIN, since),
-    queryInboxStats(since),
+  const [recentThoughts, stats] = await Promise.all([
+    listRecent(7, 200),
+    getThoughtStats(7),
   ]);
 
-  const totalEntries =
-    people.entries.length + projects.entries.length + ideas.entries.length + admin.entries.length;
-
-  if (totalEntries === 0) {
+  if (recentThoughts.length === 0) {
     await sendFn('<b>Weekly Review</b>\n\nNothing captured this week. A blank slate for the week ahead!');
     logger.info({ event: 'digest_sent', type: 'weekly', entriesCount: 0, durationMs: Date.now() - startMs });
     return;
   }
 
-  const formattedInput = formatWeeklyInput({ people, projects, ideas, admin }, inboxStats);
+  const statsSection = formatStatsSection(stats);
+  const thoughtsSection = formatThoughtsForDigest(recentThoughts);
+
+  let formattedInput = `${statsSection}\n\nTHOUGHTS:\n${thoughtsSection}`;
+  if (formattedInput.length > TOKEN_BUDGET_CHARS) {
+    formattedInput = formattedInput.slice(0, TOKEN_BUDGET_CHARS) + '\n\n[Input truncated to fit token budget]';
+  }
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-5-20250929',
@@ -116,5 +100,5 @@ export async function generateWeeklyDigest(
   }
 
   const durationMs = Date.now() - startMs;
-  logger.info({ event: 'digest_sent', type: 'weekly', entriesCount: totalEntries, durationMs });
+  logger.info({ event: 'digest_sent', type: 'weekly', entriesCount: recentThoughts.length, durationMs });
 }
