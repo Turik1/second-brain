@@ -1,22 +1,14 @@
 import { logger } from '../utils/logger.js';
-import { pool } from '../db/index.js';
-import type { Thought } from '../db/index.js';
+import { listTasksWithActions } from '../db/index.js';
 
 export async function generateAfternoonReminder(sendFn: (text: string) => Promise<void>): Promise<void> {
   const startMs = Date.now();
 
   logger.info({ event: 'reminder_start' });
 
-  let rows: Thought[];
+  let rows;
   try {
-    const result = await pool.query<Thought>(
-      `SELECT * FROM thoughts
-       WHERE thought_type = 'task'
-       AND action_items != '{}'
-       AND created_at > now() - interval '7 days'
-       ORDER BY created_at DESC`,
-    );
-    rows = result.rows;
+    rows = await listTasksWithActions(7);
   } catch (err) {
     logger.error({ event: 'reminder_error', error: String(err) }, 'Afternoon reminder failed');
     return;

@@ -84,16 +84,12 @@ async function main() {
 
   app.post('/mcp', mcpAuth, async (req, res) => {
     const server = createMcpServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
     try {
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-      });
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
-      res.on('close', () => {
-        transport.close();
-        server.close();
-      });
     } catch (err) {
       logger.error({ error: err }, 'MCP request failed');
       if (!res.headersSent) {
@@ -103,6 +99,9 @@ async function main() {
           id: null,
         });
       }
+    } finally {
+      transport.close();
+      await server.close();
     }
   });
 

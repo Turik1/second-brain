@@ -102,7 +102,7 @@ export function createMcpServer(): McpServer {
     'capture_thought',
     'Save a new thought to the Open Brain. The thought will be embedded and metadata will be extracted automatically.',
     {
-      content: z.string().min(1).describe('The thought to capture'),
+      content: z.string().min(1).max(10000).describe('The thought to capture'),
       source: z.string().default('mcp').describe('Source identifier (e.g., "claude-desktop", "claude-code")'),
     },
     async ({ content, source }) => {
