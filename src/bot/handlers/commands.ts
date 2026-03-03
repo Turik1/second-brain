@@ -102,6 +102,10 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
       return;
     }
 
+    // Reset counter and map for each /open call
+    openTaskMap.clear();
+    openTaskCounter = 0;
+
     const lines = [`<b>Offene Aufgaben (${tasks.length})</b>\n`];
     const keyboard = new InlineKeyboard();
 
