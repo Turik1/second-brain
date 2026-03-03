@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { listRecent, getThoughtStats } from '../db/index.js';
+import { listRecent, getThoughtStats, listOpenTasks } from '../db/index.js';
 import { splitTelegramMessage } from '../utils/telegram.js';
 import { WEEKLY_DIGEST_SYSTEM_PROMPT } from './prompt.js';
 import { formatThoughtsForDigest, formatStatsSection } from './format.js';
@@ -28,10 +28,22 @@ export async function generateWeeklyDigest(
     return;
   }
 
+  const openTasks = await listOpenTasks(50);
+
+  const staleTasks = openTasks.filter(t => {
+    const age = Date.now() - t.created_at.getTime();
+    return age > 7 * 24 * 60 * 60 * 1000;
+  });
+  let openSection = '';
+  if (staleTasks.length > 0) {
+    openSection = `\nSTALE OPEN TASKS (${staleTasks.length}, older than 7 days):\n` +
+      staleTasks.map(t => `- ${t.title ?? t.content.slice(0, 80)} (${Math.floor((Date.now() - t.created_at.getTime()) / 86400000)} days old)`).join('\n') + '\n';
+  }
+
   const statsSection = formatStatsSection(stats);
   const thoughtsSection = formatThoughtsForDigest(recentThoughts);
 
-  let formattedInput = `${statsSection}\n\nTHOUGHTS:\n${thoughtsSection}`;
+  let formattedInput = `${statsSection}${openSection}\n\nTHOUGHTS:\n${thoughtsSection}`;
   if (formattedInput.length > TOKEN_BUDGET_CHARS) {
     formattedInput = formattedInput.slice(0, TOKEN_BUDGET_CHARS) + '\n\n[Input truncated to fit token budget]';
   }

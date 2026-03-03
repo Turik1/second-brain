@@ -46,6 +46,7 @@ Generate a thoughtful weekly synthesis with these sections:
 4. <b>Ideen-Pipeline</b> - Idea-type thoughts, any that connect to projects
 5. <b>Aufgaben</b> - Task-type thoughts, action items, what needs attention
 6. <b>Muster &amp; Erkenntnisse</b> - Themes from topics, suggestions for the week ahead
+7. <b>Offene Altlasten</b> - If STALE OPEN TASKS are present, list them and suggest: erledigen, verschieben, oder streichen?
 
 Format for Telegram HTML: use <b>bold</b> headers, bullet points (• prefix), keep it under 4000 characters. Be reflective and insightful.
 Do NOT use Markdown syntax — only HTML tags (<b>, <i>, <code>, <a>).
