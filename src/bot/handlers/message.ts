@@ -51,6 +51,8 @@ export function registerMessageHandler(bot: Bot): void {
         const receipt = [
           `<b>${escapeHtml(thought.title ?? messageText.slice(0, 50))}</b>`,
           thought.thought_type ? `Typ: ${thought.thought_type}` : '',
+          thought.due_date ? `Fällig: ${new Date(thought.due_date).toISOString().slice(0, 10)}` : '',
+          thought.priority ? `Priorität: ${thought.priority}` : '',
           thought.topics?.length ? `Themen: ${thought.topics.join(', ')}` : '',
           thought.people?.length ? `Personen: ${thought.people.join(', ')}` : '',
         ].filter(Boolean).join('\n');
