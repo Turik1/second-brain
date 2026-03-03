@@ -1,7 +1,11 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import { logger } from '../../utils/logger.js';
 import { findThoughtBySourceId, updateThoughtStatus, listOpenTasks } from '../../db/index.js';
 import { generateDailyDigest, generateWeeklyDigest, generateOverview } from '../../digest/index.js';
+
+// In-memory map for callback data (Telegram 64-byte limit on callback_data)
+const openTaskMap = new Map<number, string>(); // numeric key -> thought UUID
+let openTaskCounter = 0;
 
 export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => Promise<void>): void {
   bot.command('start', async (ctx) => {
@@ -99,9 +103,14 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
     }
 
     const lines = [`<b>Offene Aufgaben (${tasks.length})</b>\n`];
+    const keyboard = new InlineKeyboard();
+
     for (const t of tasks) {
+      const key = ++openTaskCounter;
+      openTaskMap.set(key, t.id);
+
       const title = t.title ?? t.content.slice(0, 60);
-      let line = `• ${title}`;
+      let line = `${key}. ${title}`;
       if (t.due_date) {
         const dueStr = new Date(t.due_date).toISOString().slice(0, 10);
         const today = new Date().toISOString().slice(0, 10);
@@ -109,9 +118,57 @@ export function registerCommandHandlers(bot: Bot, sendToUser: (text: string) => 
       }
       if (t.priority === 'high') line += ' 🔴';
       lines.push(line);
+
+      keyboard
+        .text(`✓ ${key}`, `done:${key}`)
+        .text(`✗ ${key}`, `del:${key}`)
+        .row();
     }
 
-    await ctx.reply(lines.join('\n'), { parse_mode: 'HTML' });
+    await ctx.reply(lines.join('\n'), {
+      parse_mode: 'HTML',
+      reply_markup: keyboard,
+    });
+  });
+
+  bot.callbackQuery(/^done:(\d+)$/, async (ctx) => {
+    const key = parseInt(ctx.match![1]);
+    const thoughtId = openTaskMap.get(key);
+
+    if (!thoughtId) {
+      await ctx.answerCallbackQuery({ text: 'Aufgabe nicht mehr verfügbar.' });
+      return;
+    }
+
+    const updated = await updateThoughtStatus(thoughtId, 'done');
+    openTaskMap.delete(key);
+
+    if (updated) {
+      await ctx.answerCallbackQuery({ text: `✓ ${updated.title ?? 'Erledigt'}` });
+      logger.info({ thoughtId: updated.id, title: updated.title }, 'Thought marked done via button');
+    } else {
+      await ctx.answerCallbackQuery({ text: 'Fehler beim Aktualisieren.' });
+    }
+  });
+
+  bot.callbackQuery(/^del:(\d+)$/, async (ctx) => {
+    const key = parseInt(ctx.match![1]);
+    const thoughtId = openTaskMap.get(key);
+
+    if (!thoughtId) {
+      await ctx.answerCallbackQuery({ text: 'Aufgabe nicht mehr verfügbar.' });
+      return;
+    }
+
+    const updated = await updateThoughtStatus(thoughtId, 'cancelled');
+    openTaskMap.delete(key);
+
+    if (updated) {
+      await ctx.answerCallbackQuery({ text: `Gelöscht: ${updated.title ?? 'Entfernt'}` });
+      logger.info({ thoughtId: updated.id, title: updated.title }, 'Thought cancelled via button');
+    } else {
+      await ctx.answerCallbackQuery({ text: 'Fehler beim Löschen.' });
+    }
   });
 
   bot.command('digest', async (ctx) => {
