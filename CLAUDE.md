@@ -11,11 +11,12 @@ Telegram bot that captures thoughts via Claude API metadata extraction, stores i
 - `npm run dev` - watch mode (long polling)
 - `npm run build` - compile TypeScript
 - `npm start` - run compiled app
-- `npx -p typescript tsc --noEmit` - type-check
+- `npm test` - run tests (vitest)
+- `npx tsc --noEmit` - type-check only
 
 ## Architecture
 - `src/index.ts` - entry point: Express server + bot startup (webhook or long polling) + MCP endpoint
-- `src/bot/` - grammY bot setup, command handlers, message handler
+- `src/bot/` - grammY bot setup, command handlers (incl. digest commands), message handler
 - `src/brain/` - thought capture pipeline (embed + extract + insert)
 - `src/db/` - Postgres connection pool, migrations, query layer
 - `src/embeddings/` - Voyage AI embedding generation
@@ -30,6 +31,8 @@ Single `thoughts` table in Postgres with pgvector:
 - content (text), embedding (vector 1024), title, thought_type, topics[], people[], action_items[]
 - source tracking (source, source_id, chat_id)
 - Semantic search via HNSW cosine similarity index
+- Dedup: ON CONFLICT (source, source_id) DO NOTHING
+- Migrations auto-run on startup (src/db/migrate.ts)
 
 ## MCP Tools
 - `search_thoughts` - semantic search by meaning
@@ -42,6 +45,11 @@ Single `thoughts` table in Postgres with pgvector:
 - Barrel exports via index.ts in each module
 - Zod for all validation (config, API responses, metadata extraction)
 - All bot responses and digest prompts in German
+- Claude Haiku 4.5 for metadata extraction, Claude Sonnet 4.5 for digests/overview
+
+## Environment
+Required: `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_ID`, `ANTHROPIC_API_KEY`, `DATABASE_URL`, `VOYAGE_API_KEY`, `MCP_ACCESS_KEY`
+Optional: `WEBHOOK_DOMAIN`, `PORT` (3000), `NODE_ENV`, `DIGEST_TIMEZONE` (Europe/Berlin), `DAILY_DIGEST_HOUR` (8), `WEEKLY_DIGEST_DAY` (0), `AFTERNOON_REMINDER_HOUR` (14)
 
 ## Deployment
 - Push to main → GitHub Actions SSH → deploy.sh on VPS
@@ -62,3 +70,6 @@ Single `thoughts` table in Postgres with pgvector:
 - MCP endpoint at /mcp uses bearer token auth (MCP_ACCESS_KEY)
 - Postgres runs as a Docker container alongside the app (pgvector/pgvector:pg16)
 - Voyage AI API requires separate API key from voyageai.com
+- grammY: handler registration order matters — commands must be registered BEFORE `bot.on('message')` or they'll be silently swallowed
+- MCP stateless mode: must create new McpServer + StreamableHTTPServerTransport per request (server.connect takes ownership)
+- vitest: `dist/` must be excluded in vitest.config.ts or tests run twice (compiled JS copies)
