@@ -39,12 +39,6 @@ const ConfigSchema = z.object({
 
   // MCP
   MCP_ACCESS_KEY: z.string().min(1, 'MCP_ACCESS_KEY is required'),
-
-  // Weekly review
-  WEEKLY_REVIEW_ENABLED: z
-    .string()
-    .default('true')
-    .transform((v) => v !== 'false'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

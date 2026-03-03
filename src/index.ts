@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'http';
 import express from 'express';
-import { webhookCallback, InlineKeyboard } from 'grammy';
+import { webhookCallback } from 'grammy';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
@@ -32,14 +32,6 @@ async function main() {
   // Helper: send a message to the allowed chat
   const sendToUser = async (text: string): Promise<void> => {
     await bot.api.sendMessage(config.ALLOWED_CHAT_ID, text, { parse_mode: 'HTML' });
-  };
-
-  // Helper: send a message with optional inline keyboard
-  const sendWithKeyboard = async (text: string, keyboard?: InlineKeyboard): Promise<void> => {
-    await bot.api.sendMessage(config.ALLOWED_CHAT_ID, text, {
-      parse_mode: 'HTML',
-      ...(keyboard ? { reply_markup: keyboard } : {}),
-    });
   };
 
   // Register on-demand digest commands
@@ -133,7 +125,7 @@ async function main() {
   const isWebhookMode =
     config.NODE_ENV === 'production' && config.WEBHOOK_DOMAIN !== undefined;
 
-  const scheduler = initializeScheduler(sendToUser, sendWithKeyboard, bot);
+  const scheduler = initializeScheduler(sendToUser, bot);
 
   let server: http.Server;
 
