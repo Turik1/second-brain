@@ -7,7 +7,7 @@ import { config } from './config.js';
 import { logger } from './utils/logger.js';
 import { getHealthState, setDbConnected } from './utils/state.js';
 import { createBot } from './bot/index.js';
-import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
+import { initializeScheduler } from './digest/index.js';
 import { runMigrations, closePool } from './db/index.js';
 import { createMcpServer, mcpAuth } from './mcp/index.js';
 
@@ -27,46 +27,13 @@ async function main() {
     logger.error({ event: 'uncaught_exception', error: err }, 'Uncaught exception');
   });
 
-  const bot = createBot();
-
-  // Helper: send a message to the allowed chat
+  // Helper: send a message to the allowed chat (late-bound — bot is set below)
+  let bot: ReturnType<typeof createBot>;
   const sendToUser = async (text: string): Promise<void> => {
     await bot.api.sendMessage(config.ALLOWED_CHAT_ID, text, { parse_mode: 'HTML' });
   };
 
-  // Register on-demand digest commands
-  bot.command('digest', async (ctx) => {
-    logger.info({ messageId: ctx.message?.message_id }, 'Command: /digest');
-    await ctx.reply('Generating daily digest...');
-    try {
-      await generateDailyDigest(sendToUser);
-    } catch (err) {
-      logger.error({ error: err }, 'Manual daily digest failed');
-      await ctx.reply('Failed to generate digest. Check logs for details.');
-    }
-  });
-
-  bot.command('weekly', async (ctx) => {
-    logger.info({ messageId: ctx.message?.message_id }, 'Command: /weekly');
-    await ctx.reply('Generating weekly digest...');
-    try {
-      await generateWeeklyDigest(sendToUser);
-    } catch (err) {
-      logger.error({ error: err }, 'Manual weekly digest failed');
-      await ctx.reply('Failed to generate weekly digest. Check logs for details.');
-    }
-  });
-
-  bot.command('overview', async (ctx) => {
-    logger.info({ messageId: ctx.message?.message_id }, 'Command: /overview');
-    await ctx.reply('Generating overview, this may take a moment...');
-    try {
-      await generateOverview(sendToUser);
-    } catch (err) {
-      logger.error({ error: err }, 'Overview generation failed');
-      await ctx.reply('Failed to generate overview. Check logs for details.');
-    }
-  });
+  bot = createBot(sendToUser);
 
   const app = express();
   app.use(express.json());

@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { registerCommandHandlers } from './handlers/commands.js';
 import { registerMessageHandler } from './handlers/message.js';
 
-export function createBot(): Bot {
+export function createBot(sendToUser: (text: string) => Promise<void>): Bot {
   const bot = new Bot(config.TELEGRAM_BOT_TOKEN);
 
   // Middleware: chat ID allowlist - silently ignore all other chats
@@ -18,7 +18,7 @@ export function createBot(): Bot {
   });
 
   // Register handlers: commands first, then general message
-  registerCommandHandlers(bot);
+  registerCommandHandlers(bot, sendToUser);
   registerMessageHandler(bot);
 
   // Global error handler
