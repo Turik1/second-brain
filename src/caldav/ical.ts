@@ -75,6 +75,61 @@ export function pageToVEvent(page: NotionPage): string {
   return lines.join('\r\n');
 }
 
+export interface ParsedVEvent {
+  uid: string;
+  dtstart: string; // YYYY-MM-DD
+  summary: string;
+  status: string | null;
+}
+
+/** Unfold iCalendar line folding (RFC 5545 §3.1) */
+function unfold(text: string): string {
+  return text.replace(/\r?\n([ \t])/g, '$1');
+}
+
+/** Parse a YYYY-MM-DD from various DTSTART formats */
+function parseDtstart(value: string): string {
+  // VALUE=DATE:20260305 → already date-only
+  // TZID=..:20260305T100000 → extract date portion
+  // Plain: 20260305 or 20260305T100000Z
+  const dateStr = value.replace(/^.*[:=]/, '').trim();
+  const digits = dateStr.replace(/T.*$/, '');
+  if (digits.length === 8) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+  return digits;
+}
+
+/** Parse incoming iCalendar text from a PUT request */
+export function parseVEvent(icalText: string): ParsedVEvent {
+  const unfolded = unfold(icalText);
+  const lines = unfolded.split(/\r?\n/);
+
+  let uid = '';
+  let dtstart = '';
+  let summary = '';
+  let status: string | null = null;
+  let inVevent = false;
+
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { inVevent = true; continue; }
+    if (line === 'END:VEVENT') break;
+    if (!inVevent) continue;
+
+    if (line.startsWith('UID:')) {
+      uid = line.slice(4).trim();
+    } else if (line.startsWith('DTSTART')) {
+      dtstart = parseDtstart(line);
+    } else if (line.startsWith('SUMMARY:')) {
+      summary = line.slice(8).trim().replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
+    } else if (line.startsWith('STATUS:')) {
+      status = line.slice(7).trim();
+    }
+  }
+
+  return { uid, dtstart, summary, status };
+}
+
 /** Wrap one or more VEVENT strings in a VCALENDAR envelope */
 export function wrapCalendar(vevents: string): string {
   const lines = [

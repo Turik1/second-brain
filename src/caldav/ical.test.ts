@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pageToVEvent, wrapCalendar } from './ical.js';
+import { pageToVEvent, wrapCalendar, parseVEvent } from './ical.js';
 import type { NotionPage } from '../notion/schemas.js';
 
 const mockPage: NotionPage = {
@@ -85,5 +85,67 @@ describe('wrapCalendar', () => {
     expect(cal).toContain('VERSION:2.0');
     expect(cal).toContain('PRODID:-//Second Brain//CalDAV//EN');
     expect(cal).toContain(vevent);
+  });
+});
+
+describe('parseVEvent', () => {
+  const ical = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:abc123-def456',
+    'DTSTART;VALUE=DATE:20260310',
+    'DTEND;VALUE=DATE:20260311',
+    'SUMMARY:Updated title',
+    'STATUS:COMPLETED',
+    'PRIORITY:1',
+    'DTSTAMP:20260303T120000Z',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  it('extracts UID', () => {
+    expect(parseVEvent(ical).uid).toBe('abc123-def456');
+  });
+
+  it('extracts DTSTART as YYYY-MM-DD', () => {
+    expect(parseVEvent(ical).dtstart).toBe('2026-03-10');
+  });
+
+  it('extracts SUMMARY', () => {
+    expect(parseVEvent(ical).summary).toBe('Updated title');
+  });
+
+  it('extracts STATUS', () => {
+    expect(parseVEvent(ical).status).toBe('COMPLETED');
+  });
+
+  it('handles unfolded long lines', () => {
+    const folded = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:test-uid',
+      'DTSTART;VALUE=DATE:20260305',
+      'SUMMARY:A very long task name that was',
+      ' folded by the client',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    expect(parseVEvent(folded).summary).toBe(
+      'A very long task name that was folded by the client',
+    );
+  });
+
+  it('handles DTSTART with TZID parameter', () => {
+    const withTz = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:tz-test',
+      'DTSTART;TZID=Europe/Berlin:20260305T100000',
+      'SUMMARY:Meeting',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    expect(parseVEvent(withTz).dtstart).toBe('2026-03-05');
   });
 });
