@@ -17,11 +17,6 @@ export function setDbConnected(ok: boolean): void {
   _dbConnected = ok;
 }
 
-/** @deprecated Use setDbConnected instead */
-export function setNotionConnected(ok: boolean): void {
-  _dbConnected = ok;
-}
-
 export function incrementPending(): void {
   _pendingMessages++;
 }

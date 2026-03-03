@@ -9,15 +9,6 @@ const ConfigSchema = z.object({
   // Anthropic
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
 
-  // Notion
-  NOTION_API_KEY: z.string().min(1, 'NOTION_API_KEY is required'),
-  NOTION_PARENT_PAGE_ID: z.string().min(1, 'NOTION_PARENT_PAGE_ID is required'),
-  NOTION_DB_PEOPLE: z.string().min(1, 'NOTION_DB_PEOPLE is required'),
-  NOTION_DB_PROJECTS: z.string().min(1, 'NOTION_DB_PROJECTS is required'),
-  NOTION_DB_IDEAS: z.string().min(1, 'NOTION_DB_IDEAS is required'),
-  NOTION_DB_ADMIN: z.string().min(1, 'NOTION_DB_ADMIN is required'),
-  NOTION_DB_INBOX_LOG: z.string().min(1, 'NOTION_DB_INBOX_LOG is required'),
-
   // Postgres
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
@@ -33,9 +24,6 @@ const ConfigSchema = z.object({
   DAILY_DIGEST_HOUR: z.coerce.number().int().min(0).max(23).default(8),
   WEEKLY_DIGEST_DAY: z.coerce.number().int().min(0).max(6).default(0),
   AFTERNOON_REMINDER_HOUR: z.coerce.number().int().min(0).max(23).default(14),
-
-  // Classification
-  BOUNCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
 
   // MCP
   MCP_ACCESS_KEY: z.string().min(1, 'MCP_ACCESS_KEY is required'),

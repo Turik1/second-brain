@@ -1,14 +1,13 @@
 {
   "name": "second-brain",
   "version": "1.0.0",
-  "description": "AI-powered second brain: Telegram capture -> Claude classification -> Notion storage",
+  "description": "AI-powered Open Brain: Telegram capture -> Claude metadata extraction -> Postgres+pgvector storage -> MCP server",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "setup": "tsx scripts/setup-notion.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
