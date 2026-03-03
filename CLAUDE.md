@@ -16,12 +16,12 @@ Telegram bot that captures thoughts via Claude API metadata extraction, stores i
 
 ## Architecture
 - `src/index.ts` - entry point: Express server + bot startup (webhook or long polling) + MCP endpoint
-- `src/bot/` - grammY bot setup, command handlers (incl. digest commands), message handler
+- `src/bot/` - grammY bot setup, command handlers (/done, /delete, /open, digests), message handler
 - `src/brain/` - thought capture pipeline (embed + extract + insert)
 - `src/db/` - Postgres connection pool, migrations, query layer
 - `src/embeddings/` - Voyage AI embedding generation
 - `src/extractor/` - Claude Haiku metadata extraction
-- `src/mcp/` - MCP server with 4 tools (search, list, stats, capture)
+- `src/mcp/` - MCP server with 7 tools (search, list, stats, capture, open tasks, complete, delete)
 - `src/digest/` - daily/weekly digest, overview, afternoon reminder, cron scheduler
 - `src/utils/` - logger (pino), state, telegram helpers
 - `src/config.ts` - Zod-validated env config
@@ -29,16 +29,26 @@ Telegram bot that captures thoughts via Claude API metadata extraction, stores i
 ## Data Model
 Single `thoughts` table in Postgres with pgvector:
 - content (text), embedding (vector 1024), title, thought_type, topics[], people[], action_items[]
+- status (open/done/cancelled), due_date, priority (high/medium/low)
 - source tracking (source, source_id, chat_id)
 - Semantic search via HNSW cosine similarity index
 - Dedup: ON CONFLICT (source, source_id) DO NOTHING
 - Migrations auto-run on startup (src/db/migrate.ts)
 
 ## MCP Tools
-- `search_thoughts` - semantic search by meaning
-- `list_recent` - browse recent captures
+- `search_thoughts` - semantic search by meaning (optional status filter)
+- `list_recent` - browse recent captures (optional status filter)
 - `thought_stats` - usage patterns and top topics/people
 - `capture_thought` - write thoughts from any MCP client
+- `list_open_tasks` - open tasks sorted by due date
+- `complete_thought` - mark task done by ID
+- `delete_thought` - soft-delete by ID
+
+## Bot Commands
+- `/open` - list open tasks with due dates and priority
+- `/done` (reply) - mark a thought as completed
+- `/delete` (reply) - soft-delete a thought
+- `/digest`, `/weekly`, `/overview` - generate digests on demand
 
 ## Code Style
 - ESM imports with .js extensions (TypeScript with NodeNext resolution)
