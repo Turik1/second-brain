@@ -26,6 +26,8 @@ export async function captureThought(input: CaptureInput): Promise<Thought | nul
       topics: metadata.topics,
       people: metadata.people,
       action_items: metadata.action_items,
+      due_date: metadata.due_date ?? undefined,
+      priority: metadata.priority ?? undefined,
       source: input.source ?? 'telegram',
       source_id: input.source_id,
       chat_id: input.chat_id,
