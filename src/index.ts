@@ -2,12 +2,14 @@ import 'dotenv/config';
 import http from 'http';
 import express from 'express';
 import { webhookCallback, InlineKeyboard } from 'grammy';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
 import { getHealthState, setNotionConnected } from './utils/state.js';
 import { createBot } from './bot/index.js';
 import { initializeScheduler, generateDailyDigest, generateWeeklyDigest, generateOverview } from './digest/index.js';
 import { runMigrations, closePool } from './db/index.js';
+import { createMcpServer, mcpAuth } from './mcp/index.js';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -84,6 +86,48 @@ async function main() {
       uptime: process.uptime(),
       ...getHealthState(),
     });
+  });
+
+  // ─── MCP server for AI client access ──────────────────────────────────────
+
+  app.post('/mcp', mcpAuth, async (req, res) => {
+    const server = createMcpServer();
+    try {
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+      res.on('close', () => {
+        transport.close();
+        server.close();
+      });
+    } catch (err) {
+      logger.error({ error: err }, 'MCP request failed');
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal server error' },
+          id: null,
+        });
+      }
+    }
+  });
+
+  app.get('/mcp', mcpAuth, async (_req, res) => {
+    res.writeHead(405).end(JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: 'Method not allowed. Use POST.' },
+      id: null,
+    }));
+  });
+
+  app.delete('/mcp', mcpAuth, async (_req, res) => {
+    res.writeHead(405).end(JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: 'Method not allowed.' },
+      id: null,
+    }));
   });
 
   const isWebhookMode =
